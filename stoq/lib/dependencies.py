@@ -22,49 +22,82 @@
 ## Author(s): Stoq Team <stoq-devel@async.com.br>
 ##
 ##
-""" Check Stoq dependencies"""
+"""Check Stoq dependencies.
 
-# FIXME: Display all missing dependencies as once in an ObjectList
-# FIXME: Integrate with package installer
+Version requirements for pip packages are read from pyproject.toml
+[project.dependencies], keeping a single source of truth. Non-Python
+checks (GTK typelibs, psql binary, pyobjc) keep their own constants.
+"""
 
+import importlib
+import importlib.metadata
 import os
 import platform
 import sys
+import tomllib
+from pathlib import Path
+
+from packaging.requirements import Requirement
+from packaging.specifiers import SpecifierSet
+from packaging.version import InvalidVersion, Version
 
 from stoqlib.lib.translation import stoqlib_gettext as _
 
-# When changing something here, remember to update
-# the README and the debian control files
-#
-# TODO: Add requests, weasyprint, lxml
-#
-DATEUTIL_REQUIRED = (2, 9, 0)
+# Non-pip checks: not in pyproject.toml, keep hardcoded
 GTK_REQUIRED = (3, 24)
-KIWI_REQUIRED = (3, 0, 4)
-MAKO_REQUIRED = (1, 3, 12)
-# PIL (via the Pillow fork)
-PIL_REQUIRED = (3, 1, 0)
-PYCAIRO_REQUIRED = (1, 8, 2)
-# XXX: this is broken and will need to be replaced
-#PYPOPPLER_REQUIRED = (0, 4, 1)
-# PostgreSQL client libs
-#   sysdeps: libpq-dev postgresql-client
-PSQL_REQUIRED = (18, 4)
-PSYCOPG_REQUIRED = (2, 9, 12)
-# PyGOBject WebKit2
-#   sysdeps: gir1.2-webkit-3.0
+PYCAIRO_REQUIRED = (1, 27, 0)
 PYGOBJECTWEBKIT_REQUIRED = (4, 1)
 PYOBJC_REQUIRED = (2, 3)
+PSQL_REQUIRED = (18, 4)
 PYSERIAL_REQUIRED = (3, 5)
-REPORTLAB_REQUIRED = (2, 4)
-STORM_REQUIRED = (1, 1)
-STOQDRIVERS_REQUIRED = (3, 0, 0)
-WEASYPRINT_REQUIRED = (69, 0)
-XLWT_REQUIRED = (1, 3, 0)
-ZOPE_INTERFACE_REQUIRED = (8, 2)
+
+# Dist name -> import name (where they differ)
+_DIST_TO_IMPORT = {
+    'kiwi-gtk': 'kiwi',
+    'pillow': 'PIL',
+    'psycopg2-binary': 'psycopg2',
+    'pyjwt': 'jwt',
+    'python-dateutil': 'dateutil',
+}
+
+# Version extractors for source-tree packages without dist metadata
+_VERSION_EXTRACTORS = {
+    'kiwi': lambda m: '.'.join(map(str, m.__version__.version)),
+    'storm': lambda m: '.'.join(map(str, m.version_info)),
+    'stoqdrivers': lambda m: '.'.join(map(str, m.__version__)),
+    'psycopg2': lambda m: m.__version__.split(' ', 1)[0],
+    'reportlab': lambda m: m.Version,
+    'weasyprint': lambda m: str(m.VERSION),
+    'xlwt': lambda m: m.__VERSION__,
+    'PIL': lambda m: m.__version__,
+    'dateutil': lambda m: m.__version__,
+    'mako': lambda m: m.__version__,
+}
+
+
+def _load_pyproject_specifiers():
+    """Parse pyproject.toml dependencies into {dist_name: SpecifierSet}."""
+    pyproject = Path(__file__).resolve().parents[2] / 'pyproject.toml'
+    if not pyproject.exists():
+        return {}
+    with open(pyproject, 'rb') as f:
+        data = tomllib.load(f)
+    specs = {}
+    for dep in data.get('project', {}).get('dependencies', []):
+        try:
+            req = Requirement(dep)
+        except Exception:
+            continue
+        specs[req.name.lower()] = req.specifier
+    return specs
+
+
+_PYPROJECT_SPECS = _load_pyproject_specifiers()
 
 
 def _tuple2str(tpl):
+    if isinstance(tpl, str):
+        return tpl
     return '.'.join(map(str, tpl))
 
 
@@ -72,50 +105,45 @@ class DependencyChecker(object):
     def __init__(self):
         self.text_mode = False
 
-    def check_kiwi(self, version):
-        self._check_kiwi(version)
+    def check_kiwi(self, version=None):
+        """Check kiwi. version arg kept for setup_old.py compat."""
+        self._check_kiwi()
 
     def check(self):
-        # First make it possible to open up a graphical interface,
-        # so we can display error messages
+        # GUI prerequisites (so we can show error dialogs)
         self._check_gtk(GTK_REQUIRED)
-        self._check_kiwi(KIWI_REQUIRED)
+        self._check_kiwi()
         self._check_pycairo(PYCAIRO_REQUIRED)
         self._check_pygobjectwebkit(PYGOBJECTWEBKIT_REQUIRED)
         if platform.system() == 'Darwin':
             self._check_pyobjc(PYOBJC_REQUIRED)
-        self._check_zope_interface(ZOPE_INTERFACE_REQUIRED)
-        self._check_dateutil(DATEUTIL_REQUIRED)
-        self._check_xlwt(XLWT_REQUIRED)
+        self._check_zope_interface()
+        self._check_dateutil()
+        self._check_xlwt()
 
         # Database
         self._check_psql(PSQL_REQUIRED)
-        self._check_psycopg(PSYCOPG_REQUIRED)
-        self._check_storm(STORM_REQUIRED)
+        self._check_psycopg()
+        self._check_storm()
 
         # Printing
-        # FIXME: might be interesting to allow to run Stoq with printing
-        #        disabled, would need a global somewhere and refactor
-        #        printing imports.
-        self._check_pil(PIL_REQUIRED)
-        self._check_reportlab(REPORTLAB_REQUIRED)
-        self._check_mako(MAKO_REQUIRED)
+        self._check_pil()
+        self._check_reportlab()
+        self._check_mako()
         if platform.system() not in ['Darwin', 'Windows']:
-            #self._check_pypoppler(PYPOPPLER_REQUIRED)
-            # This needs to be imported *after* poppler. Don't ask me why
-            self._check_weasyprint(WEASYPRINT_REQUIRED)
+            self._check_weasyprint()
 
         # ECF
-        # FIXME: makes sense to allow Stoq to run with all of these disabled.
         self._check_pyserial(PYSERIAL_REQUIRED)
-        self._check_stoqdrivers(STOQDRIVERS_REQUIRED)
+        self._check_stoqdrivers()
+
+    # --- error reporting ---
 
     def _error(self, title, msg, details=None):
         if self.text_mode:
             msg = msg.replace('<b>', '').replace('</b>', '')
             raise SystemExit("ERROR: %s\n\n%s" % (title, msg))
 
-        # Can't use Kiwi here, so create a simple Gtk dialog
         from gi.repository import Gtk
         dialog = Gtk.MessageDialog(parent=None, flags=0,
                                    message_type=Gtk.MessageType.ERROR,
@@ -133,7 +161,6 @@ class DependencyChecker(object):
                 "You can find a recent version of %s on it's homepage at\n%s") % (
             project, project, _tuple2str(version),
             project, url)
-
         self._error(_("Missing dependency"), msg, details=details)
 
     def _too_old(self, project, url=None, required=None, found=None):
@@ -143,7 +170,6 @@ class DependencyChecker(object):
                 "You can find a recent version of %s on it's homepage at\n%s") % (
             project, project, found, _tuple2str(required),
             project, url)
-
         self._error(_("Out-dated dependency"), msg)
 
     def _incompatible(self, project, url=None, required=None, found=None):
@@ -153,8 +179,78 @@ class DependencyChecker(object):
                 "You can find an older version of %s on it's homepage at\n%s") % (
             project, found, _tuple2str(required),
             project, url)
-
         self._error(_("Incompatible dependency"), msg)
+
+    # --- version helpers ---
+
+    def _get_spec(self, dist_name):
+        return _PYPROJECT_SPECS.get(dist_name.lower())
+
+    def _get_version(self, dist_name, import_name=None):
+        """Get installed version. Tries importlib.metadata, then
+        falls back to reading the module's version attribute."""
+        if import_name is None:
+            import_name = _DIST_TO_IMPORT.get(dist_name, dist_name)
+        for name in (dist_name, import_name):
+            try:
+                return importlib.metadata.version(name)
+            except importlib.metadata.PackageNotFoundError:
+                continue
+        try:
+            mod = importlib.import_module(import_name)
+        except ImportError:
+            return None
+        extractor = _VERSION_EXTRACTORS.get(import_name)
+        if extractor:
+            return extractor(mod)
+        for attr in ('__version__', 'VERSION', 'Version', 'version'):
+            v = getattr(mod, attr, None)
+            if isinstance(v, str):
+                return v
+            if hasattr(v, 'version'):
+                return '.'.join(map(str, v.version))
+            if isinstance(v, tuple):
+                return '.'.join(map(str, v))
+        return None
+
+    def _version_too_old(self, dist_name, found):
+        """Check if found version satisfies the pyproject specifier."""
+        spec = self._get_spec(dist_name)
+        if spec is None:
+            return False
+        try:
+            v = Version(str(found))
+        except InvalidVersion:
+            clean = str(found).split(' ', 1)[0].split('+', 1)[0]
+            try:
+                v = Version(clean)
+            except InvalidVersion:
+                return False
+        return not spec.contains(v)
+
+    def _required_str(self, dist_name):
+        """Human-readable required version string from pyproject."""
+        spec = self._get_spec(dist_name)
+        return str(spec) if spec else "unknown"
+
+    def _check_pip_package(self, dist_name, project, url,
+                           import_name=None, details=None):
+        """Generic check for a pip package listed in pyproject.toml."""
+        if import_name is None:
+            import_name = _DIST_TO_IMPORT.get(dist_name, dist_name)
+        try:
+            importlib.import_module(import_name)
+        except ImportError as e:
+            self._missing(project=project, url=url,
+                          version=self._required_str(dist_name),
+                          details=details or str(e) if details else None)
+            return
+        found = self._get_version(dist_name, import_name)
+        if found and self._version_too_old(dist_name, found):
+            self._too_old(project=project, url=url,
+                          found=found, required=self._required_str(dist_name))
+
+    # --- non-pip checks (hardcoded versions) ---
 
     def _check_gtk(self, gtk_version):
         try:
@@ -164,7 +260,6 @@ class DependencyChecker(object):
             from gi.repository import Gtk
             Gtk  # pylint: disable=W0104
         except (ValueError, ImportError) as e:
-            # Can't display a dialog here since gtk is not available
             raise SystemExit(
                 "ERROR: GTK+ not found, can't start Stoq: %r" % (e, ))
 
@@ -173,22 +268,6 @@ class DependencyChecker(object):
                           url="http://www.gtk.org/",
                           found=_tuple2str(Gtk.gtk_version),
                           required=gtk_version)
-
-    def _check_kiwi(self, version):
-        try:
-            import kiwi
-        except ImportError:
-            self._missing(project="Kiwi",
-                          url='http://www.async.com.br/projects/kiwi/',
-                          version=version)
-            return
-
-        kiwi_version = kiwi.__version__.version
-        if kiwi_version < version:
-            self._too_old(project="Kiwi",
-                          url='http://www.async.com.br/projects/kiwi/',
-                          found=_tuple2str(kiwi_version),
-                          required=version)
 
     def _check_pycairo(self, version):
         try:
@@ -205,24 +284,6 @@ class DependencyChecker(object):
                           found=cairo.version,
                           required=version)
 
-    def _check_pypoppler(self, version):
-        try:
-            import gi
-            gi.require_version('Poppler', '0.18')
-            from gi.repository import Poppler
-        except (ValueError, ImportError):
-            self._missing(project="Pypoppler",
-                          url='https://launchpad.net/poppler-python',
-                          version=version)
-            return
-
-        pypoppler_version = (Poppler.MAJOR_VERSION, Poppler.MINOR_VERSION)
-        if pypoppler_version < version:
-            self._too_old(project="Pypoppler",
-                          url='https://launchpad.net/poppler-python',
-                          found=_tuple2str(pypoppler_version),
-                          required=version)
-
     def _check_pygobjectwebkit(self, version):
         try:
             import gi
@@ -232,15 +293,6 @@ class DependencyChecker(object):
         except (ValueError, ImportError):
             self._missing(project='WebKit2',
                           url='https://pygobject.gnome.org/',
-                          version=version)
-
-    def _check_zope_interface(self, version):
-        try:
-            import zope.interface
-            zope  # pylint: disable=W0104
-        except ImportError:
-            self._missing(project='ZopeInterface',
-                          url='http://www.zope.org/Products/ZopeInterface',
                           version=version)
 
     def _check_psql(self, version):
@@ -261,123 +313,6 @@ class DependencyChecker(object):
                           url='http://www.postgresql.org/',
                           version=version)
 
-    def _check_psycopg(self, version):
-        try:
-            import psycopg2
-        except ImportError:
-            self._missing(
-                project="psycopg2 - PostgreSQL Database adapter for Python",
-                url='http://www.initd.org/projects/psycopg2',
-                version=version)
-
-        psycopg2_version = psycopg2.__version__.split(' ', 1)[0]
-        if tuple(map(int, psycopg2_version.split('.'))) < version:
-            self._too_old(
-                project="psycopg2 - PostgreSQL Database adapter for Python",
-                url='http://www.initd.org/projects/psycopg2',
-                found=psycopg2_version,
-                required=version)
-
-    def _check_storm(self, version):
-        try:
-            import storm
-        except ImportError:
-            self._missing(
-                project="storm -  an object-relational mapper",
-                url='https://storm.canonical.com',
-                version=version)
-            return
-
-        if storm.version_info < version:
-            self._too_old(
-                project="storm -  an object-relational mapper",
-                url='https://storm.canonical.com',
-                found=storm.version,
-                required=version)
-
-    def _check_stoqdrivers(self, version):
-        try:
-            import stoqdrivers
-        except ImportError:
-            self._missing(project="Stoqdrivers",
-                          url='http://www.stoq.com.br',
-                          version=version)
-            return
-
-        stoqdrivers_version = stoqdrivers.__version__
-        if stoqdrivers_version < version:
-            self._too_old(project="Stoqdrivers",
-                          url='http://www.stoq.com.br',
-                          found=_tuple2str(stoqdrivers_version),
-                          required=version)
-
-    def _check_pil(self, version):
-        try:
-            import PIL
-        except ImportError:
-            self._missing(project='Python Imaging Library (PIL)',
-                          url='http://www.pythonware.com/products/pil/',
-                          version=version)
-            return
-
-        if hasattr(PIL, 'PILLOW_VERSION'):
-            pil_version = PIL.PILLOW_VERSION
-        else:
-            pil_version = PIL.__version__
-
-        if list(map(int, pil_version.split('.'))) < list(version):
-            self._too_old(project='Pillow - The friendly PIL fork',
-                          url='https://python-pillow.org/',
-                          required=version,
-                          found=PIL.PILLOW_VERSION)
-
-    def _check_reportlab(self, version):
-        try:
-            import reportlab
-        except ImportError:
-            self._missing(project="Reportlab",
-                          url='http://www.reportlab.org/',
-                          version=version)
-            return
-
-        rl_version = list(map(int, reportlab.Version.split('.')))
-        if rl_version < list(version):
-            self._too_old(project="Reportlab",
-                          url='http://www.reportlab.org/',
-                          required=version,
-                          found=reportlab.Version)
-
-    def _check_dateutil(self, version):
-        try:
-            import dateutil
-        except ImportError:
-            self._missing(project="Dateutil",
-                          url='http://labix.org/python-dateutil/',
-                          version=version)
-            return
-
-        if (not hasattr(dateutil, "__version__") or
-                list(map(int, dateutil.__version__[:5].split('.'))) < list(version)):
-            self._too_old(project="Dateutil",
-                          url='http://labix.org/python-dateutil/',
-                          required=version,
-                          found=getattr(dateutil, '__version__', 'unknown'))
-
-    def _check_mako(self, version):
-        try:
-            import mako
-        except ImportError:
-            self._missing(project="Mako",
-                          url='http://www.makotemplates.org/',
-                          version=version)
-            return
-
-        if list(map(int, mako.__version__.split('.'))) < list(version):
-            self._too_old(project="Mako",
-                          url='http://www.makotemplates.org/',
-                          required=version,
-                          found=mako.__version__)
-
     def _check_pyserial(self, version):
         try:
             import serial
@@ -386,41 +321,6 @@ class DependencyChecker(object):
             self._missing(project='pySerial',
                           url='http://pyserial.sourceforge.net/',
                           version=version)
-
-    def _check_weasyprint(self, version):
-        try:
-            import weasyprint
-            weasyprint  # pylint: disable=W0104
-        except ImportError as e:
-            # Weasyprint might have missing dependencies. Display more details
-            # about the import error.
-            self._missing(project='weasyprint',
-                          url='http://weasyprint.org/',
-                          version=version,
-                          details=str(e))
-            return
-
-        if list(map(int, weasyprint.VERSION.split('.'))) < list(version):
-            self._too_old(project="weasyprint",
-                          url='http://weasyprint.org/',
-                          required=version,
-                          found=weasyprint.VERSION)
-
-    def _check_xlwt(self, version):
-        try:
-            import xlwt
-            xlwt  # pylint: disable=W0104
-        except ImportError:
-            self._missing(project='xlwt',
-                          url='http://www.python-excel.org/',
-                          version=version)
-            return
-
-        if list(map(int, xlwt.__VERSION__.split('.'))) < list(version):
-            self._too_old(project="xlwt",
-                          url='http://www.python-excel.org/',
-                          required=version,
-                          found=xlwt.__VERSION__)
 
     def _check_pyobjc(self, version):
         try:
@@ -445,6 +345,68 @@ class DependencyChecker(object):
             self._missing(project='pyobjc with cocoa support',
                           url='http://pyobjc.sf.net/',
                           version=version)
+
+    # --- pip package checks (versions from pyproject.toml) ---
+
+    def _check_kiwi(self):
+        self._check_pip_package('kiwi-gtk', 'Kiwi',
+                                'http://www.async.com.br/projects/kiwi/')
+
+    def _check_zope_interface(self):
+        self._check_pip_package('zope.interface', 'ZopeInterface',
+                                'http://www.zope.org/Products/ZopeInterface')
+
+    def _check_dateutil(self):
+        self._check_pip_package('python-dateutil', 'Dateutil',
+                                'http://labix.org/python-dateutil/')
+
+    def _check_xlwt(self):
+        self._check_pip_package('xlwt', 'xlwt',
+                                'http://www.python-excel.org/')
+
+    def _check_psycopg(self):
+        self._check_pip_package(
+            'psycopg2-binary',
+            "psycopg2 - PostgreSQL Database adapter for Python",
+            'http://www.initd.org/projects/psycopg2')
+
+    def _check_storm(self):
+        self._check_pip_package('storm', 'storm - an object-relational mapper',
+                                'https://storm.canonical.com')
+
+    def _check_pil(self):
+        self._check_pip_package('pillow',
+                                'Pillow - The friendly PIL fork',
+                                'https://python-pillow.org/')
+
+    def _check_reportlab(self):
+        self._check_pip_package('reportlab', 'Reportlab',
+                                'http://www.reportlab.org/')
+
+    def _check_mako(self):
+        self._check_pip_package('mako', 'Mako',
+                                'http://www.makotemplates.org/')
+
+    def _check_weasyprint(self):
+        try:
+            import weasyprint
+            weasyprint  # pylint: disable=W0104
+        except ImportError as e:
+            self._missing(project='weasyprint',
+                          url='http://weasyprint.org/',
+                          version=self._required_str('weasyprint'),
+                          details=str(e))
+            return
+        found = self._get_version('weasyprint')
+        if found and self._version_too_old('weasyprint', found):
+            self._too_old(project="weasyprint",
+                          url='http://weasyprint.org/',
+                          found=found,
+                          required=self._required_str('weasyprint'))
+
+    def _check_stoqdrivers(self):
+        self._check_pip_package('stoqdrivers', 'Stoqdrivers',
+                                'http://www.stoq.com.br')
 
 
 def check_dependencies(text_mode=False):
