@@ -35,26 +35,33 @@ from stoqlib.lib.translation import stoqlib_gettext as _
 
 # When changing something here, remember to update
 # the README and the debian control files
+#
 # TODO: Add requests, weasyprint, lxml
-DATEUTIL_REQUIRED = (1, 4, 1)
-GTK_REQUIRED = (3, 14)
-GUDEV_REQUIRED = (147, )
-KIWI_REQUIRED = (1, 11, 1)
-MAKO_REQUIRED = (0, 2, 5)
+#
+DATEUTIL_REQUIRED = (2, 9, 0)
+GTK_REQUIRED = (3, 24)
+KIWI_REQUIRED = (3, 0, 4)
+MAKO_REQUIRED = (1, 3, 12)
+# PIL (via the Pillow fork)
 PIL_REQUIRED = (3, 1, 0)
 PYCAIRO_REQUIRED = (1, 8, 2)
-PYPOPPLER_REQUIRED = (0, 12, 1)
-PSQL_REQUIRED = (9, 6)
-PSYCOPG_REQUIRED = (2, 0, 9)
-PYGTKWEBKIT_REQUIRED = (1, 1, 7)
+# XXX: this is broken and will need to be replaced
+#PYPOPPLER_REQUIRED = (0, 4, 1)
+# PostgreSQL client libs
+#   sysdeps: libpq-dev postgresql-client
+PSQL_REQUIRED = (18, 4)
+PSYCOPG_REQUIRED = (2, 9, 12)
+# PyGOBject WebKit2
+#   sysdeps: gir1.2-webkit-3.0
+PYGOBJECTWEBKIT_REQUIRED = (4, 1)
 PYOBJC_REQUIRED = (2, 3)
-PYSERIAL_REQUIRED = (2, 1)
+PYSERIAL_REQUIRED = (3, 5)
 REPORTLAB_REQUIRED = (2, 4)
-STORM_REQUIRED = (0, 19)
-STOQDRIVERS_REQUIRED = (1, 3)
-WEASYPRINT_REQUIRED = (0, 34)
-XLWT_REQUIRED = (0, 7, 2)
-ZOPE_INTERFACE_REQUIRED = (3, 0)
+STORM_REQUIRED = (1, 1)
+STOQDRIVERS_REQUIRED = (3, 0, 0)
+WEASYPRINT_REQUIRED = (69, 0)
+XLWT_REQUIRED = (1, 3, 0)
+ZOPE_INTERFACE_REQUIRED = (8, 2)
 
 
 def _tuple2str(tpl):
@@ -74,7 +81,7 @@ class DependencyChecker(object):
         self._check_gtk(GTK_REQUIRED)
         self._check_kiwi(KIWI_REQUIRED)
         self._check_pycairo(PYCAIRO_REQUIRED)
-        self._check_pygtkwebkit(PYGTKWEBKIT_REQUIRED)
+        self._check_pygobjectwebkit(PYGOBJECTWEBKIT_REQUIRED)
         if platform.system() == 'Darwin':
             self._check_pyobjc(PYOBJC_REQUIRED)
         self._check_zope_interface(ZOPE_INTERFACE_REQUIRED)
@@ -94,7 +101,7 @@ class DependencyChecker(object):
         self._check_reportlab(REPORTLAB_REQUIRED)
         self._check_mako(MAKO_REQUIRED)
         if platform.system() not in ['Darwin', 'Windows']:
-            self._check_pypoppler(PYPOPPLER_REQUIRED)
+            #self._check_pypoppler(PYPOPPLER_REQUIRED)
             # This needs to be imported *after* poppler. Don't ask me why
             self._check_weasyprint(WEASYPRINT_REQUIRED)
 
@@ -216,15 +223,15 @@ class DependencyChecker(object):
                           found=_tuple2str(pypoppler_version),
                           required=version)
 
-    def _check_pygtkwebkit(self, version):
+    def _check_pygobjectwebkit(self, version):
         try:
             import gi
-            gi.require_version('WebKit2', '4.0')
+            gi.require_version('WebKit2', '%s.%s' % (version))
             from gi.repository import WebKit2
             WebKit2  # pylint: disable=W0104
         except (ValueError, ImportError):
-            self._missing(project='pywebkitgtk',
-                          url='http://code.google.com/p/pywebkitgtk/',
+            self._missing(project='WebKit2',
+                          url='https://pygobject.gnome.org/',
                           version=version)
 
     def _check_zope_interface(self, version):
@@ -350,7 +357,7 @@ class DependencyChecker(object):
             return
 
         if (not hasattr(dateutil, "__version__") or
-                list(map(int, dateutil.__version__.split('.'))) < list(version)):
+                list(map(int, dateutil.__version__[:5].split('.'))) < list(version)):
             self._too_old(project="Dateutil",
                           url='http://labix.org/python-dateutil/',
                           required=version,
