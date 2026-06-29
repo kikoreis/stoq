@@ -29,14 +29,13 @@ According to Law 12,741 of 12/08/2012 - Taxes in Coupon.
 """
 from collections import namedtuple
 
-import pkg_resources
-
 import csv
 from decimal import Decimal
 
 from stoqlib.database.runtime import get_current_branch, new_store
 from stoqlib.lib.defaults import quantize
 from stoqlib.lib.parameters import sysparam
+from stoqlib.lib.resources import resource_filename
 
 taxes_data = {}
 TaxInfo = namedtuple('TaxInfo', 'nacionalfederal, importadosfederal, estadual,'
@@ -65,7 +64,7 @@ def load_taxes_csv(state):
     if state in taxes_data:
         return
 
-    filename = pkg_resources.resource_filename('stoq', 'csv/ibpt_tables/TabelaIBPTax%s.csv' % state)
+    filename = resource_filename('stoq', 'csv/ibpt_tables/TabelaIBPTax%s.csv' % state)
     csv_file = (csv.reader(open(filename, "r", encoding='latin1'), delimiter=';'))
 
     state_taxes_data = {}

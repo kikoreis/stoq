@@ -362,11 +362,6 @@ class Shell(object):
     def _terminate(self, restart=False, app=None):
         log.info("Terminating Stoq")
 
-        # This removes all temporary files created when calling
-        # get_resource_filename() that extract files to the file system
-        import pkg_resources
-        pkg_resources.cleanup_resources()
-
         log.debug('Stopping deamon')
         from stoqlib.lib.daemonutils import stop_daemon
         stop_daemon()

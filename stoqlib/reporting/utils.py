@@ -28,8 +28,7 @@ import base64
 import logging
 import platform
 
-import pkg_resources
-
+from stoqlib.lib.resources import resource_string
 from stoqlib.database.runtime import get_current_branch, get_default_store
 from stoqlib.exceptions import DatabaseInconsistency
 from stoqlib.lib.formatters import format_phone_number
@@ -47,7 +46,7 @@ def get_logo_data(store):
     if logo_domain and logo_domain.image:
         data = logo_domain.image
     else:
-        data = pkg_resources.resource_string('stoq', 'pixmaps/stoq_logo_bgwhite.png')
+        data = resource_string('stoq', 'pixmaps/stoq_logo_bgwhite.png')
 
     return 'data:image/png;base64,' + base64.b64encode(data).decode()
 

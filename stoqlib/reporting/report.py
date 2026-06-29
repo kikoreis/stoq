@@ -23,10 +23,10 @@
 import os
 import platform
 
-import pkg_resources
 from kiwi.accessor import kgetattr
 
 from stoqlib.database.runtime import get_default_store
+from stoqlib.lib.resources import resource_filename
 from stoqlib.lib.template import render_template
 from stoqlib.lib.translation import stoqlib_gettext, stoqlib_ngettext
 from stoqlib.lib.formatters import (get_formatted_price, get_formatted_cost,
@@ -81,7 +81,7 @@ class HTMLReport(object):
     def render(self, stylesheet=None):
         import weasyprint
 
-        template_dir = pkg_resources.resource_filename('stoq', 'template')
+        template_dir = resource_filename('stoq', 'template')
         if platform.system() == 'Windows':
             # FIXME: Figure out why this is breaking
             # On windows, weasyprint is eating the last directory of the path

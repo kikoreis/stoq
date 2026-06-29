@@ -26,11 +26,10 @@ import http.server
 import os
 import urllib.parse
 
-import pkg_resources
-
+from stoqlib.lib.resources import resource_filename
 from stoqlib.net.calendarevents import CalendarEvents
 
-_static = pkg_resources.resource_filename('stoq', 'html')
+_static = resource_filename('stoq', 'html')
 resources = {
     '/calendar-events': CalendarEvents(),
 }

@@ -23,12 +23,11 @@
 
 import logging
 
-import pkg_resources
-
 from stoqlib.database.interfaces import ICurrentBranch, ICurrentBranchStation
 from stoqlib.domain.station import BranchStation
 from stoqlib.database.runtime import new_store
 from stoqlib.lib.component import provide_utility
+from stoqlib.lib.resources import resource_filename
 from stoqlib.importers.accountimporter import AccountImporter
 from stoqlib.importers.accounttransactionimporter import AccountTransactionImporter
 from stoqlib.importers.branchimporter import BranchImporter
@@ -49,7 +48,7 @@ log = logging.getLogger(__name__)
 
 def _import_one(klass, filename):
     imp = klass()
-    imp.feed_file(pkg_resources.resource_filename('stoq', 'csv/{}'.format(filename)))
+    imp.feed_file(resource_filename('stoq', 'csv/{}'.format(filename)))
     imp.process()
 
 

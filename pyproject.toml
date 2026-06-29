@@ -1,74 +1,55 @@
-[tool.poetry]
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
 name = "stoqlib"
 version = "7.14.0"
-description = ""
-authors = ["Stoq Team <dev@stoq.com.br>"]
-license = "LGPL-2.0"
-packages = [
-    { include = "stoq" },
-    { include = "plugins" },
-    { include = "stoqlib" },
+description = "A powerful retail system"
+authors = [{name = "Stoq Team", email = "dev@stoq.com.br"}]
+license = {text = "LGPL-2.0"}
+requires-python = ">=3.9"
+dependencies = [
+    "kiwi-gtk>=3.0.4",
+    "lxml>=3.5.0",
+    "mako>=1.0.3",
+    "pillow>=3.1.2",
+    "psycopg2-binary>=2.7.4",
+    "pyjwt>=1.3.0",
+    "pyopenssl>=17.0.0",
+    "python-dateutil>=2.4.2",
+    "python-nss>=1.0.0",
+    "raven>=6.1.0",
+    "reportlab>=3.3.0",
+    "requests>=2.9.1",
+    "stoqdrivers>=2.0.0",
+    "storm>=0.24",
+    "weasyprint>=0.34",
+    "xlwt>=1.2.0",
+    "zope.interface>=4.1.3",
 ]
-include = [
-    "data/csv/*.csv",
-    "data/csv/ibpt_tables/*.csv",
-    "data/csv/cest/*.csv",
-    "data/scripts/*.sh",
-    "data/sql/*.py",
-    "data/sql/*.sql",
-    "plugins/*.py",
-    "plugins/*.plugin",
-    "plugins/*.csv",
-    "plugins/*.sql",
+
+[project.optional-dependencies]
+dev = [
+    "coverage>=5.3",
+    "docutils>=0.16",
+    "nose>=1.3.7",
+    "nose-exclude>=0.5.0",
+    "nosexcover>=1.0.11",
+    "pycodestyle>=2.6.0",
+    "pyflakes>=2.2.0",
+    "pytest>=6",
+    "pytest-cov>=2.10.1",
+    "pytest-stoq>=0.7.0",
+    "bump2version>=1.0.1",
 ]
 
-[tool.poetry.scripts]
-stoqdbadmin = 'stoq.dbadmin:run'
+[project.scripts]
+stoqdbadmin = "stoq.dbadmin:run"
 
-[tool.poetry.dependencies]
-python = "^3.5"
-kiwi-gtk = "^3.0.4"
-lxml = ">=3.5.0"
-mako = "^1.0.3"
-pillow = "^3.1.2"
-psycopg2 = { version = "^2.6.1", python = "3.5" }
-# workaround to be able to install older psycopg2 version (incompatible with new environments)
-# alognside the production version
-psycopg2-binary = { version = "^2.7.4", python = "^3.5" }
-pyJWT = "^1.3.0"
-pyopenssl = "^17.0.0"
-# pin cryptography to match xenial python-openssl
-python-dateutil = "^2.4.2"
-python-nss = "^1.0.0"
-raven = "^6.1.0"
-reportlab = "^3.3.0"
-requests = "^2.9.1"
-stoqdrivers = "^2.0.0"
-storm = "^0.24"
-weasyprint = "^0.34"
-xlwt = "^1.2.0"
-"zope.interface" = "^4.1.3"
-
-[tool.poetry.dev-dependencies]
-coverage = "^5.3"
-docutils = "^0.16"
-nose = "^1.3.7"
-nose-exclude = "^0.5.0"
-nosexcover = "^1.0.11"
-pycodestyle = "^2.6.0"
-pyflakes = "^2.2.0"
-# pytest >= 6 adds a dependency that doesn't work for python 3.5
-pytest = "<6"
-# zipp >= 2 is required for pytest and doesn't work for python 3.5
-zipp = "<2"
-pytest-cov = "^2.10.1"
-pytest-stoq = "^0.7.0"
-bump2version = "^1.0.1"
+[tool.setuptools.packages.find]
+include = ["stoq*", "stoqlib*", "plugins*"]
 
 [tool.isort]
 known_local_folder = ["stoq", "stoqlib"]
 src_paths = ["stoq", "stoqlib", "plugins", "tests"]
-
-[build-system]
-requires = ["poetry>=0.12,<1.1.3"]
-build-backend = "poetry.masonry.api"

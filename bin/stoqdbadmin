@@ -44,8 +44,6 @@ else:
                                        appname,
                                        string.split(sys.version)[0]))
 
-    import pkg_resources
-
 # We only support portuguese locale on Windows for now
 import platform
 if platform.system() == 'Windows':

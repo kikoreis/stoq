@@ -21,9 +21,9 @@
 ## Author(s): Stoq Team <stoq-devel@async.com.br>
 ##
 
-import pkg_resources
 import xlwt
 
+from stoqlib.lib.resources import resource_filename
 from stoqlib.lib.translation import stoqlib_gettext as _
 
 # Styles
@@ -63,7 +63,7 @@ def write_app_hyperlink(sheet, row):
 
 
 def write_app_logo(sheet):
-    filename = pkg_resources.resource_filename('stoq', 'pixmaps/stoq_logo.bmp')
+    filename = resource_filename('stoq', 'pixmaps/stoq_logo.bmp')
     sheet.insert_bitmap(filename, 0, 3,
                         x=0, y=0, scale_x=0.75, scale_y=0.25)
 

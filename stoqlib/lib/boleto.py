@@ -27,7 +27,6 @@ import collections
 import datetime
 import logging
 
-import pkg_resources
 from kiwi.currency import currency
 from kiwi.datatypes import converter
 
@@ -41,6 +40,7 @@ from stoqlib.lib.cnab.caixa import CaixaCnab
 from stoqlib.lib.cnab.itau400 import ItauCnab400
 from stoqlib.lib.cnab.santander import SantanderCnab
 from stoqlib.lib.parameters import sysparam
+from stoqlib.lib.resources import resource_filename
 from stoqlib.lib.translation import stoqlib_gettext
 
 _ = stoqlib_gettext
@@ -143,8 +143,8 @@ class BankInfo(object):
 
         self.logo_image_path = ""
         if self.logo:
-            self.logo_image_path = pkg_resources.resource_filename('stoq',
-                                                                   'pixmaps/{}'.format(self.logo))
+            self.logo_image_path = resource_filename('stoq',
+                                                     'pixmaps/{}'.format(self.logo))
 
     def get_properties(self, payment):
         """Get values necesary for bill emission.

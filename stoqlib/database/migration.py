@@ -35,8 +35,6 @@ import sys
 import tempfile
 import traceback
 
-import pkg_resources
-
 from stoqlib.database.runtime import get_default_store, new_store
 from stoqlib.database.settings import db_settings, check_extensions
 from stoqlib.domain.plugin import InstalledPlugin
@@ -48,6 +46,7 @@ from stoqlib.lib.defaults import stoqlib_gettext
 from stoqlib.lib.message import error, info
 from stoqlib.lib.parameters import sysparam
 from stoqlib.lib.pluginmanager import get_plugin_manager
+from stoqlib.lib.resources import resource_filename, resource_listdir
 
 _ = stoqlib_gettext
 log = logging.getLogger(__name__)
@@ -187,7 +186,7 @@ class SchemaMigration(object):
 
     def _get_patches(self):
         patches = []
-        for filename in pkg_resources.resource_listdir(self.patch_resource_domain,
+        for filename in resource_listdir(self.patch_resource_domain,
                                                        self.patch_resource):
             for pattern in self.patch_patterns:
                 if not fnmatch.fnmatch(filename, pattern):
@@ -195,7 +194,7 @@ class SchemaMigration(object):
                 if not self._patchname_is_valid(filename):
                     print("Invalid patch name: %s" % filename)
                     continue
-                filename = pkg_resources.resource_filename(
+                filename = resource_filename(
                     self.patch_resource_domain, '{}/{}'.format(self.patch_resource, filename))
                 patches.append(Patch(filename, self))
 
