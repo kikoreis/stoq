@@ -592,6 +592,7 @@ class CreateDatabaseStep(BaseWizardStep):
         self.n_patches = 0
         self.process_view = ProcessView()
         self.process_view.listen_stderr = True
+        self.process_view.set_min_content_height(250)
         self.process_view.connect('read-line', self._on_processview__readline)
         self.process_view.connect('finished', self._on_processview__finished)
         self.expander.add(self.process_view)
