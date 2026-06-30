@@ -120,6 +120,7 @@ class DependencyChecker(object):
         self._check_zope_interface()
         self._check_dateutil()
         self._check_xlwt()
+        self._check_pyjwt()
 
         # Database
         self._check_psql(PSQL_REQUIRED)
@@ -363,6 +364,10 @@ class DependencyChecker(object):
     def _check_xlwt(self):
         self._check_pip_package('xlwt', 'xlwt',
                                 'http://www.python-excel.org/')
+
+    def _check_pyjwt(self):
+        self._check_pip_package('pyjwt', 'PyJWT',
+                                'https://pyjwt.readthedocs.io/')
 
     def _check_psycopg(self):
         self._check_pip_package(

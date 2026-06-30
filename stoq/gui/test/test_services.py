@@ -26,7 +26,7 @@ import datetime
 
 from gi.repository import Gtk
 from unittest import mock
-from nose.exc import SkipTest
+from unittest import SkipTest
 
 from stoqlib.api import api
 from stoqlib.domain.workorder import WorkOrderItem, WorkOrder

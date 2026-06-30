@@ -149,7 +149,7 @@ class TestInvoiceItemIcms(DomainTest):
 
         sale_item_icms._calc_v_icms_deson(sale_item)
 
-        self.assertEquals(sale_item_icms.v_icms_deson, Decimal('4.00'))
+        self.assertEqual(sale_item_icms.v_icms_deson, Decimal('4.00'))
 
     def test_calc_v_icms_deson_with_zero_value(self):
         sale_item_icms = self.create_invoice_item_icms()
@@ -159,7 +159,7 @@ class TestInvoiceItemIcms(DomainTest):
 
         sale_item_icms._calc_v_icms_deson(sale_item)
 
-        self.assertEquals(sale_item_icms.v_icms_deson, Decimal('0.01'))
+        self.assertEqual(sale_item_icms.v_icms_deson, Decimal('0.01'))
 
     def testVCredIcmsSnCalc(self):
         """Test for v_cred_icms_sn calculation.

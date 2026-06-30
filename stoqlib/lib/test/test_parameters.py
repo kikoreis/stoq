@@ -183,7 +183,7 @@ class TestParameter(DomainTest):
                                           store=self.store,
                                           invoice_number=1231)
         self.assertEqual(param, receiving_order.cfop)
-        self.failIfEqual(param, receiving_order2.cfop)
+        self.assertNotEqual(param, receiving_order2.cfop)
 
     def test_icms_tax(self):
         param = self.sparam.get_decimal('ICMS_TAX')

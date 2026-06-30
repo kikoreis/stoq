@@ -76,7 +76,9 @@ class AccessToken(Domain):
         if exp_timedelta:
             payload['exp'] = issue_date + exp_timedelta
 
-        token = jwt.encode(payload, secret, algorithm='HS256').decode()
+        token = jwt.encode(payload, secret, algorithm='HS256')
+        if isinstance(token, bytes):
+            token = token.decode()
 
         super().__init__(token=token, issue_date=issue_date, user=user, **kwargs)
 

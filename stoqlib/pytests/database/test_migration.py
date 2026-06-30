@@ -60,8 +60,9 @@ def test_schema_migration_missing_postgres_extensions(check_extensions_mock, err
 
 
 def test_schema_migration_get_patches_invalid_patch_name(schema_migration, capsys):
-    migration_path = resource_filename(schema_migration.patch_resource_domain,
-                                                      schema_migration.patch_resource)
+    migration_path = resource_filename(
+        schema_migration.patch_resource_domain,
+        schema_migration.patch_resource)
     migration_filename = "{}/patch-10.py".format(migration_path)
     with open(migration_filename, 'w') as f:
         f.write("foobar")

@@ -24,7 +24,7 @@
 
 import decimal
 
-from nose.exc import SkipTest
+from unittest import SkipTest
 from stoqdrivers.enum import PaymentMethodType, TaxType
 from stoqlib.domain.sellable import SellableTaxConstant
 from stoqlib.exceptions import DeviceError

@@ -26,7 +26,7 @@ import datetime
 from decimal import Decimal
 
 from unittest import mock
-from nose.exc import SkipTest
+from unittest import SkipTest
 from storm.expr import And, Eq, Ne
 
 from stoqlib.lib.component import provide_utility
@@ -225,8 +225,8 @@ class TestSale(DomainTest):
         sale = self.create_sale()
         self.assertEqual(sale.get_status_name(sale.STATUS_CONFIRMED), u'Confirmed')
 
-        self.failUnlessRaises(TypeError,
-                              sale.get_status_name, u'invalid status')
+        self.assertRaises(TypeError,
+                          sale.get_status_name, 'invalid status')
 
     def test_add_item(self):
         sale = self.create_sale()

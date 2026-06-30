@@ -38,7 +38,7 @@ def is_developer_mode():
 
 def configure_locale(lang=None):
     if lang is None:
-        lang = locale.getlocale()[0] or locale.getdefaultlocale()[0] or 'en_US'
+        lang = locale.getlocale()[0] or 'en_US'
 
     lang += '.UTF-8'
     os.environ['LC_ALL'] = lang

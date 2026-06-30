@@ -24,7 +24,7 @@
 
 from decimal import Decimal
 
-from nose.exc import SkipTest
+from unittest import SkipTest
 from stoqdrivers.enum import PaymentMethodType
 from stoqdrivers.exceptions import DriverError
 

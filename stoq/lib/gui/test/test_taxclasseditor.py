@@ -33,7 +33,7 @@ from stoq.lib.gui.test.uitestutils import GUITest
 class TestProductTaxTemplateEditor(GUITest):
     def test_create(self):
         editor = ProductTaxTemplateEditor(self.store, None)
-        self.assertEquals(editor.model.tax_type, ProductTaxTemplate.TYPE_ICMS)
+        self.assertEqual(editor.model.tax_type, ProductTaxTemplate.TYPE_ICMS)
 
     def test_update_csosn(self):
         # Creating a new tax
@@ -49,8 +49,8 @@ class TestProductTaxTemplateEditor(GUITest):
 
         # Changing the CSOSN 500
         slave.csosn.select_item_by_position(8)
-        self.assertEquals(slave.p_icms_st.read(), 0)
-        self.assertEquals(slave.p_red_bc_st.read(), 0)
+        self.assertEqual(slave.p_icms_st.read(), 0)
+        self.assertEqual(slave.p_red_bc_st.read(), 0)
 
         # CSOSN 201
         slave.csosn.select_item_by_position(4)
@@ -59,8 +59,8 @@ class TestProductTaxTemplateEditor(GUITest):
 
         # Updating CSOSN to 202
         slave.csosn.select_item_by_position(5)
-        self.assertEquals(slave.p_cred_sn.read(), 0)
-        self.assertEquals(slave.p_cred_sn_valid_until.read(), None)
+        self.assertEqual(slave.p_cred_sn.read(), 0)
+        self.assertEqual(slave.p_cred_sn_valid_until.read(), None)
 
     def test_mot_des_icms_with_invalid_csts(self):
         editor = ProductTaxTemplateEditor(self.store, None)

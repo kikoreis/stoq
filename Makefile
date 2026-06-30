@@ -31,31 +31,16 @@ lint:
 	pycodestyle $(TEST_MODULES)
 
 check: clean lint-diff-only
-	@echo "Running $(TEST_MODULES) unittests"
-	@rm -f .noseids
-	@python3 runtests.py --exclude-dir=stoqlib/pytests --failed $(TEST_MODULES)
-	@pytest
+	@echo "Running pytest"
+	pytest
 
 coverage: clean lint
-	python3 runtests.py \
-	    --with-xcoverage \
-	    --with-xunit \
-	    --cover-package=stoqlib \
-	    --cover-erase \
-	    --cover-inclusive \
-		--exclude-dir=stoqlib/pytests \
-		--exclude-dir=utils \
-	    $(TEST_MODULES)
-	pytest --cov=stoqlib/ --cov-append
+	pytest --cov=stoqlib/ --cov-report=xml
 	coverage xml --omit "**/test/*.py,stoqlib/pytests/*"
 	utils/validatecoverage.py coverage.xml
 	PYTHONIOENCODING=utf8 git show | python3 utils/diff-coverage coverage.xml
 
 test:
-	python3 runtests.py $(TEST_MODULES) \
-		--exclude-dir=stoqlib/pytests \
-		--exclude-dir=utils \
-		--with-xunit
 	pytest
 
 include utils/utils.mk

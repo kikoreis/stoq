@@ -73,7 +73,7 @@ class TestPaymentEditor(GUITest):
             editor.end_date.update(localdate(2016, 1, 10).date())
             editor.main_dialog.confirm()
 
-        self.assertEquals(editor.model.identifier, -1)
+        self.assertEqual(editor.model.identifier, -1)
 
     def test_edit_paid_out_payment(self):
         payment = self.create_payment()

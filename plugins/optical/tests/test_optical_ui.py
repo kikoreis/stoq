@@ -313,7 +313,7 @@ class TestOpticalUI(BaseGUITest, OpticalDomainTest):
 
         # Before the action, there are no purchase orders for this work order
         results = PurchaseOrder.find_by_work_order(self.store, work_order)
-        self.assertEquals(results.count(), 0)
+        self.assertEqual(results.count(), 0)
 
         action = OpticalWorkOrderActions.get_instance().get_action('OpticalNewPurchase')
         run_dialog.return_value = Settable(supplier=supplier,
@@ -330,7 +330,7 @@ class TestOpticalUI(BaseGUITest, OpticalDomainTest):
 
         # Now there should be one purchase order
         results = PurchaseOrder.find_by_work_order(self.store, work_order)
-        self.assertEquals(results.count(), 1)
+        self.assertEqual(results.count(), 1)
         app.deactivate()
 
     @mock.patch('plugins.optical.opticalui.print_report')
@@ -387,7 +387,7 @@ class TestOpticalUI(BaseGUITest, OpticalDomainTest):
                                                is_freebie=False)
             wo.work(self.current_branch, self.current_user)
             results = PurchaseOrder.find_by_work_order(wo.store, wo)
-            self.assertEquals(len(list(results)), 1)
+            self.assertEqual(len(list(results)), 1)
 
         wo.finish(self.current_branch, self.current_user)
         app.deactivate()
@@ -429,5 +429,5 @@ class TestOpticalUI(BaseGUITest, OpticalDomainTest):
             wo.work(self.current_branch, self.current_user)
             # At this point we didnt create a purchase
             results = PurchaseOrder.find_by_work_order(wo.store, wo)
-            self.assertEquals(len(list(results)), 0)
+            self.assertEqual(len(list(results)), 0)
         app.deactivate()

@@ -33,12 +33,6 @@ import os
 
 from stoqlib.lib.component import get_utility
 
-try:
-    import raven
-    has_raven = True
-except ImportError:
-    has_raven = False
-
 import stoq
 from stoqlib.database.runtime import get_default_store
 from stoqlib.lib.environment import is_developer_mode
@@ -50,8 +44,37 @@ from stoqlib.lib.pluginmanager import InstalledPlugin
 from stoqlib.lib.uptime import get_uptime
 from stoqlib.lib.webservice import get_main_cnpj
 
+try:
+    import sentry_sdk
+    has_sentry = True
+except ImportError:
+    has_sentry = False
+
 log = logging.getLogger(__name__)
 _tracebacks = []
+
+# Exceptions to ignore when sending reports to Sentry.
+# (class_name, message) tuples for message-based filtering:
+IGNORE_EXCEPTIONS = set([
+    ('InternalError', 'current transaction is aborted, '
+     'commands ignored until end of transaction block'),
+])
+# Exception classes to ignore:
+IGNORE_EXCEPTION_CLASSES = set()
+
+
+def before_send(event, hint):
+    """sentry-sdk callback: drop events for ignored exceptions."""
+    exc_info = hint.get('exc_info')
+    if exc_info:
+        exc_type, exc_value, _ = exc_info
+        key = (exc_type.__name__, str(exc_value))
+        if key in IGNORE_EXCEPTIONS:
+            return None
+        for ignore_cls in IGNORE_EXCEPTION_CLASSES:
+            if isinstance(exc_value, ignore_cls):
+                return None
+    return event
 
 
 def _get_revision(module):
@@ -90,7 +113,6 @@ def collect_report():
     report_['system'] = platform.system()
     if hasattr(platform, 'dist'):
         report_['distribution'] = ' '.join(platform.dist())
-
     # Stoq application
     info = get_utility(IAppInfo, None)
     if info and info.get('name'):
@@ -162,30 +184,6 @@ def collect_report():
     return report_
 
 
-if has_raven:
-    class CustomRavenClient(raven.Client):
-        """Ignores exceptions by also taking their messages into consideration
-
-        Custom client made for ignoring certain exceptions when sending reports to
-        Sentry based not only on their exception classes but also on the messages
-        they return and not necessarily the whole exception class.
-        """
-        # When sending exceptions to Sentry, we want to ignore:
-        #   - Known colateral exceptions.
-        ignore = set([
-            ('InternalError', 'current transaction is aborted, commands ignored '
-             'until end of transaction block'),
-        ])
-
-        def should_capture(self, exc_info):
-            key = (exc_info[0].__name__, str(exc_info[1]))
-
-            if key in self.ignore:
-                return False
-
-            return super(CustomRavenClient, self).should_capture(exc_info)
-
-
 def collect_traceback(tb, output=True, submit=False):
     """Collects traceback which might be submitted
     @output: if it is to be printed
@@ -195,38 +193,40 @@ def collect_traceback(tb, output=True, submit=False):
     if output:
         traceback.print_exception(*tb)
 
-    if has_raven and not is_developer_mode():  # pragma no cover
+    if has_sentry and not is_developer_mode():  # pragma no cover
         extra = collect_report()
-        extra.pop('tracebacks')
+        extra.pop('tracebacks', None)
 
-        sentry_url = os.environ.get(
-            'STOQ_SENTRY_URL',
-            ('https://89169350b0c0434895e315aa6490341a:'
-             '0f5dce716eb5497fbf75c52fe873b3e8@sentry.stoq.com.br/4'))
-        client = CustomRavenClient(sentry_url, release=stoq.version)
-        if hasattr(client, 'user_context'):
-            client.user_context({'id': extra.get('hash', None),
-                                 'username': extra.get('cnpj', None)})
+        sentry_url = os.environ.get('STOQ_SENTRY_URL', '')
+        if not sentry_url:
+            return
 
-        # Don't sent logs to sentry
-        if 'log' in extra:
-            del extra['log']
-        if 'log_name' in extra:
-            del extra['log_name']
+        sentry_sdk.init(sentry_url,
+                        before_send=before_send,
+                        release=stoq.version)
+        sentry_sdk.set_user({
+            'id': extra.get('hash', None),
+            'username': extra.get('cnpj', None)})
+
+        # Don't send logs to sentry
+        extra.pop('log', None)
+        extra.pop('log_name', None)
 
         tags = {}
-        for name in ['architecture', 'cnpj', 'system', 'app_name', 'bdist_type',
-                     'app_version', 'distribution', 'python_version',
-                     'psycopg_version', 'pygtk_version', 'gtk_version',
-                     'kiwi_version', 'reportlab_version',
-                     'stoqdrivers_version', 'postgresql_version']:
+        tag_names = [
+            'architecture', 'cnpj', 'system', 'app_name',
+            'bdist_type', 'app_version', 'distribution',
+            'python_version', 'psycopg_version', 'pygtk_version',
+            'gtk_version', 'kiwi_version', 'reportlab_version',
+            'stoqdrivers_version', 'postgresql_version']
+        for name in tag_names:
             value = extra.pop(name, None)
-            if value is None:
-                continue
+            if value is not None:
+                tags[name] = value
 
-            tags[name] = value
-
-        client.captureException(tb, tags=tags, extra=extra)
+        sentry_sdk.set_tags(tags)
+        sentry_sdk.set_context('extra', extra)
+        sentry_sdk.capture_exception(tb)
 
 
 def has_tracebacks():

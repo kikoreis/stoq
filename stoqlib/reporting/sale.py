@@ -220,7 +220,7 @@ class SalesPersonReport(TableReport):
 
 
 def test():  # pragma no cover
-    from nose.exc import SkipTest
+    from unittest import SkipTest
     try:
         import gi
         gi  # workaround pyflakes

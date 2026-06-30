@@ -26,6 +26,7 @@
 import ctypes
 from ctypes.util import find_library
 import os
+import subprocess
 import platform
 import re
 from decimal import Decimal
@@ -95,9 +96,10 @@ def get_weekday_start():
         # v = libc.nl_langinfo(NL_TIME_FIRST_WEEKDAY)
         # first_weekday = ord(ctypes.cast(v, ctypes.c_char_p).value[0])
 
-        process = os.popen("locale first_weekday week-1stday")
-        first_weekday, week_origin = process.read().split('\n')[:2]
-        process.close()
+        process = subprocess.run(
+            ["locale", "first_weekday", "week-1stday"],
+            capture_output=True, text=True)
+        first_weekday, week_origin = process.stdout.split('\n')[:2]
 
         # we will set week_1sday based on the dateutil.relativedelta.weekday mapping
         if week_origin == '19971130':  # Sunday

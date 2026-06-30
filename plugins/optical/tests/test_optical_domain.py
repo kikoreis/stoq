@@ -115,7 +115,7 @@ class OpticalWorkOrderTest(OpticalDomainTest):
         optical_wo = self.create_optical_work_order(work_order=work_order)
         result = OpticalWorkOrder.find_by_work_order(work_order.store,
                                                      work_order)
-        self.assertEquals(result, optical_wo)
+        self.assertEqual(result, optical_wo)
 
     def test_frame_type_str(self):
         opt_wo = self.create_optical_work_order()
@@ -262,9 +262,9 @@ class TestOpticalWorkOrderItemsView(OpticalDomainTest):
         wo.add_sellable(product.sellable)
 
         views = OpticalWorkOrderItemsView.find_by_order(wo.store, wo)
-        self.assertEquals(len(list(views)), 1)
+        self.assertEqual(len(list(views)), 1)
         # We are adding only one product, so its safe to do this
         view = views[0]
-        self.assertEquals(view.optical_product, optical_product)
-        self.assertEquals(view.sellable, product.sellable)
-        self.assertEquals(view.optical_work_order, optical_wo)
+        self.assertEqual(view.optical_product, optical_product)
+        self.assertEqual(view.sellable, product.sellable)
+        self.assertEqual(view.optical_work_order, optical_wo)

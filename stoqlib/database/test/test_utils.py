@@ -67,16 +67,16 @@ class TestUtils(DomainTest):
         TestTable(is_high=True)
 
         rows = _select_rows_ids_in_batch(self.store, TestTable, 'is_high', limit=5)
-        self.assertEquals(len(rows), 0)
+        self.assertEqual(len(rows), 0)
 
         for _ in range(10):
             TestTable(self.store)
 
         rows = _select_rows_ids_in_batch(self.store, TestTable, 'is_high', limit=5)
-        self.assertEquals(len(rows), 5)
+        self.assertEqual(len(rows), 5)
 
         rows = _select_rows_ids_in_batch(self.store, TestTable, 'is_high', limit=11)
-        self.assertEquals(len(rows), 10)
+        self.assertEqual(len(rows), 10)
 
     def test_update_rows_batch_one_run(self):
         for _ in range(10):
@@ -85,7 +85,7 @@ class TestUtils(DomainTest):
         _update_rows_batch(self.store, TestTable, 'power_level', default=9001, limit=10)
 
         rs = self.store.find(TestTable, TestTable.power_level == 9001)
-        self.assertEquals(rs.count(), 10)
+        self.assertEqual(rs.count(), 10)
 
     def test_update_rows_batch_multiple_runs(self):
         for _ in range(10):
@@ -94,7 +94,7 @@ class TestUtils(DomainTest):
         _update_rows_batch(self.store, TestTable, 'power_level', default=9001, limit=3)
 
         rs = self.store.find(TestTable, TestTable.power_level == 9001)
-        self.assertEquals(rs.count(), 10)
+        self.assertEqual(rs.count(), 10)
 
     def test_update_rows_batch_without_rows(self):
         with mock.patch.object(self.store, "find") as mock_find:
@@ -114,11 +114,11 @@ class TestUtils(DomainTest):
         )
 
         rs = self.store.find(TestTable, TestTable.is_high == 1)
-        self.assertEquals(rs.count(), 10)
+        self.assertEqual(rs.count(), 10)
 
         TestTable(self.store)
         rs = self.store.find(TestTable, TestTable.is_high == 1)
-        self.assertEquals(rs.count(), 11)
+        self.assertEqual(rs.count(), 11)
 
         error_msg = '"is_high" violates not-null constraint'
         with self.assertRaisesRegex(psycopg2.IntegrityError, error_msg):
@@ -136,11 +136,11 @@ class TestUtils(DomainTest):
         )
 
         rs = self.store.find(TestTable, TestTable.power_level == 666)
-        self.assertEquals(rs.count(), 10)
+        self.assertEqual(rs.count(), 10)
 
         TestTable(self.store)
         rs = self.store.find(TestTable, TestTable.power_level == 666)
-        self.assertEquals(rs.count(), 11)
+        self.assertEqual(rs.count(), 11)
 
         error_msg = '"power_level" violates not-null constraint'
         with self.assertRaisesRegex(psycopg2.IntegrityError, error_msg):

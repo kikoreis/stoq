@@ -586,7 +586,7 @@ class TestPurchaseOrder(DomainTest):
 
         receiving = purchase.create_receiving_order(self.current_station)
         for item in receiving.get_items():
-            self.assertEquals(item.sellable, sellable)
+            self.assertEqual(item.sellable, sellable)
 
     def test_find_by_work_order(self):
         work_order = self.create_workorder()
@@ -595,7 +595,7 @@ class TestPurchaseOrder(DomainTest):
 
         results = PurchaseOrder.find_by_work_order(work_order.store, work_order)
         for expected_purchase in results:
-            self.assertEquals(purchase, expected_purchase)
+            self.assertEqual(purchase, expected_purchase)
 
 
 class TestQuotation(DomainTest):

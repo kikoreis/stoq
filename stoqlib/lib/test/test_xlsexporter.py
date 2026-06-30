@@ -22,7 +22,7 @@
 
 import os
 
-from nose.exc import SkipTest
+from unittest import SkipTest
 
 from stoqlib.domain.test.domaintest import DomainTest
 from stoqlib.exporters.xlsexporter import XLSExporter

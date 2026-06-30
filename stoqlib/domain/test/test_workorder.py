@@ -699,7 +699,7 @@ class TestWorkOrder(DomainTest):
         with mock.patch('stoqlib.domain.workorder.WorkOrderStatusChangedEvent.emit') as emit:
             emit.return_value = False
             workorder.work(self.current_branch, self.current_user)
-            self.assertEquals(workorder.status, WorkOrder.STATUS_WORK_WAITING)
+            self.assertEqual(workorder.status, WorkOrder.STATUS_WORK_WAITING)
 
     @mock.patch('stoqlib.domain.workorder.localnow')
     def test_finish(self, localnow):
