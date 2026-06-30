@@ -28,7 +28,7 @@ from decimal import Decimal
 from gi.repository import Gtk, Pango
 from kiwi import ValueUnset
 from kiwi.datatypes import ValidationError
-from stoqlib.lib.objutils import Settable
+from kiwi.python import Settable
 from kiwi.ui.objectlist import Column, ColoredColumn
 from kiwi.utils import gsignal
 

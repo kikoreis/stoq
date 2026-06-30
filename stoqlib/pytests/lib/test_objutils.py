@@ -1,6 +1,6 @@
 import pytest
 
-from stoqlib.lib.objutils import Settable, cmp, enum
+from kiwi.python import Settable, cmp, enum
 
 
 class Status(enum):

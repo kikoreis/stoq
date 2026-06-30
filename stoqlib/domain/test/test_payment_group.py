@@ -25,7 +25,7 @@
 from decimal import Decimal
 
 from nose.exc import SkipTest
-from stoqlib.lib.objutils import Settable
+from kiwi.python import Settable
 
 from stoqlib.domain.commission import CommissionSource, Commission
 from stoqlib.domain.events import PaymentGroupGetOrderEvent

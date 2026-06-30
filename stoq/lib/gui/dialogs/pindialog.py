@@ -24,7 +24,7 @@
 
 import logging
 
-from stoqlib.lib.objutils import Settable
+from kiwi.python import Settable
 
 from stoqlib.api import api
 from stoq.lib.gui.editors.baseeditor import BaseEditor

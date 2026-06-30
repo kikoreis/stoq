@@ -29,7 +29,7 @@ from decimal import Decimal
 from gi.repository import Gtk
 from kiwi.currency import currency
 from kiwi.datatypes import ValidationError
-from stoqlib.lib.objutils import Settable
+from kiwi.python import Settable
 from kiwi.ui.objectlist import Column
 
 from stoq.api import api as stoq_api

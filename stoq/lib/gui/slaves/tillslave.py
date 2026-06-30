@@ -27,7 +27,7 @@ import datetime
 
 from kiwi.currency import currency
 from kiwi.datatypes import ValidationError
-from stoqlib.lib.objutils import Settable
+from kiwi.python import Settable
 
 from stoq.lib.gui.editors.baseeditor import BaseEditorSlave
 from stoqlib.lib.translation import stoqlib_gettext

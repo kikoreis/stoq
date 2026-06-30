@@ -42,7 +42,6 @@ Current flow of the database steps:
   * :obj:`FinishInstallationStep`
 """
 
-import imp
 import logging
 import platform
 import subprocess
@@ -51,7 +50,7 @@ import sys
 from gi.repository import Gtk, GLib, Gdk
 from stoqlib.lib.component import provide_utility, get_utility
 from kiwi.datatypes import ValidationError
-from stoqlib.lib.objutils import Settable
+from kiwi.python import Settable
 from kiwi.ui.delegates import GladeSlaveDelegate
 
 from stoqlib.api import api
@@ -534,8 +533,16 @@ class InstallPostgresStep(BaseWizardStep):
         # We cannot import gtk3widgets here as gtk3 will raise an error if
         # gtk2 is already imported on the system
         try:
-            aptdaemon = imp.find_module('aptdaemon')
-            imp.find_module('gtk3widgets', [aptdaemon[1]])
+            import importlib.util
+            spec = importlib.util.find_spec('aptdaemon')
+            if spec is None:
+                return False
+            # Get the directory where aptdaemon was found
+            search_paths = spec.submodule_search_locations
+            if search_paths is None:
+                return False
+            if importlib.util.find_spec('gtk3widgets', search_paths) is None:
+                return False
         except ImportError:
             return False
 

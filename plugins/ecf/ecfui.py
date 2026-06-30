@@ -29,7 +29,7 @@ import time
 
 from serial import SerialException
 
-from stoqlib.lib.objutils import Settable
+from kiwi.python import Settable
 from stoqdrivers.exceptions import CouponOpenError, DriverError
 
 from stoqlib.api import api

@@ -38,7 +38,7 @@ from kiwi.currency import currency
 from kiwi.datatypes import ValidationError
 from kiwi.ui.objectlist import SummaryLabel
 from kiwi.utils import gsignal
-from stoqlib.lib.objutils import Settable
+from kiwi.python import Settable
 from storm.expr import And, Lower
 
 from stoq.api import api as stoq_api

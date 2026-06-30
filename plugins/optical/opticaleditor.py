@@ -25,7 +25,7 @@
 import collections
 
 from kiwi.ui.forms import BoolField, ChoiceField, TextField
-from stoqlib.lib.objutils import Settable
+from kiwi.python import Settable
 
 from stoq.api import api as stoq_api
 from stoqlib.domain.person import Supplier

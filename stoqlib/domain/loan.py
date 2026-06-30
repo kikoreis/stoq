@@ -36,7 +36,7 @@ import collections
 from decimal import Decimal
 
 from kiwi.currency import currency
-from stoqlib.lib.objutils import Settable
+from kiwi.python import Settable
 from storm.references import Reference, ReferenceSet
 from zope.interface import implementer
 

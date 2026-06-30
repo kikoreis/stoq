@@ -26,7 +26,7 @@ import contextlib
 from decimal import Decimal
 
 from gi.repository import Gtk
-from stoqlib.lib.objutils import Settable
+from kiwi.python import Settable
 from unittest import mock
 
 from stoqlib.api import api

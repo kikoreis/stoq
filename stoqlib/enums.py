@@ -24,7 +24,7 @@
 ##
 """ Database enums """
 
-from stoqlib.lib.objutils import enum
+from kiwi.python import enum
 
 
 class SyncPolicy(enum):

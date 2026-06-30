@@ -30,7 +30,7 @@ import queue
 
 from gi.repository import GLib, GObject
 from kiwi.utils import gsignal
-from stoqlib.lib.objutils import Settable
+from kiwi.python import Settable
 from storm import Undef
 from storm.database import Connection, convert_param_marks
 from storm.expr import And, Or, Like, Not, Alias, Lower
