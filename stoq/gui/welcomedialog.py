@@ -24,7 +24,7 @@ import locale
 import platform
 
 from kiwi.environ import environ
-from gi.repository import Gtk
+from gi.repository import Gtk, WebKit2
 
 from stoqlib.api import api
 from stoq.lib.gui.base.dialogs import BasicDialog
@@ -58,11 +58,9 @@ class WelcomeDialog(BasicDialog):
         self.vbox.add(sw)
         sw.show()
 
-        from gi.repository import WebKit
-        self._view = WebKit.WebView()
-        self._view.connect(
-            'navigation-policy-decision-requested',
-            self._on_view__navigation_policy_decision_requested)
+        self._view = WebKit2.WebView()
+        self._view.connect('decide-policy',
+                           self._on_view__decide_policy)
         sw.add(self._view)
         self._view.show()
 
@@ -89,10 +87,14 @@ class WelcomeDialog(BasicDialog):
             content += '?demo-mode'
         return 'file:///' + content
 
-    def _on_view__navigation_policy_decision_requested(self, view, frame,
-                                                       request, action,
-                                                       policy):
-        uri = request.props.uri
-        if not uri.startswith('file:///'):
-            policy.ignore()
+    def _on_view__decide_policy(self, view, decision, decision_type):
+        if decision_type not in (WebKit2.PolicyDecisionType.NAVIGATION_ACTION,
+                                 WebKit2.PolicyDecisionType.NEW_WINDOW_ACTION):
+            return
+        uri = decision.get_navigation_action().get_request().get_uri()
+        if (decision_type == WebKit2.PolicyDecisionType.NAVIGATION_ACTION
+                and uri.startswith('file:///')):
+            decision.use()
+        else:
+            decision.ignore()
             open_browser(uri, self.toplevel.get_screen())
