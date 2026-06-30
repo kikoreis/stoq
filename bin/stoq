@@ -65,7 +65,16 @@ else:
         raise SystemExit("ERROR: Python %s or higher is required to run %s, "
                          "%s found" % ('.'.join(map(str, REQUIRED_VERSION)),
                                        appname,
-                                       string.split(sys.version)[0]))
+                                           string.split(sys.version)[0]))
+
+    # Ensure stoq/stoqlib source packages are importable when this
+    # launcher is relaunched as a subprocess without PYTHONPATH set
+    # (e.g. by the config wizard).
+    _here = os.path.dirname(os.path.realpath(sys.argv[0]))
+    _src_root = os.path.dirname(_here)
+    if os.path.isfile(os.path.join(_src_root, 'stoq', '__init__.py')):
+        if _src_root not in sys.path:
+            sys.path.insert(0, _src_root)
 
     # Disable Ubuntus scrollbar, if it's not set, users can
     # force it by setting LIBOVERLAY_SCROLLBAR=1
@@ -125,7 +134,7 @@ def setup_stoq_eggs():
     # Check if there are eggs on the stoq database (without using stoq at all).
     # this will allow us to insert an egg in the database and all clients will
     # use that egg instead of the installed stoq.
-    from configparser import SafeConfigParser
+    from configparser import ConfigParser
     import psycopg2
     import tempfile
 
@@ -136,7 +145,7 @@ def setup_stoq_eggs():
     if not os.path.exists(config_path):
         return
 
-    config = SafeConfigParser()
+    config = ConfigParser()
     config.read(config_path)
 
     dsn = "dbname={dbname} user={dbusername} port={port}".format(

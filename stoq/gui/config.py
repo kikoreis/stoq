@@ -43,6 +43,7 @@ Current flow of the database steps:
 """
 
 import logging
+import os
 import platform
 import subprocess
 import sys
@@ -645,6 +646,9 @@ class CreateDatabaseStep(BaseWizardStep):
                 args = ['stoq.bat']
             else:
                 args = ['stoq-cmd.exe']
+        elif library.uninstalled:
+            stoq_bin = os.path.join(library.get_root(), 'bin', 'stoq')
+            args = [sys.executable, stoq_bin]
         else:
             args = ['stoq']
 
