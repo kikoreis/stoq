@@ -98,7 +98,7 @@
                     <child>
                       <object class="ProxyEntry" id="port">
                         <property name="visible">True</property>
-                        <property name="width_chars">5</property>
+                        <property name="width_chars">8</property>
                         <property name="xalign">1</property>
                         <property name="primary_icon_activatable">False</property>
                         <property name="secondary_icon_activatable">False</property>
