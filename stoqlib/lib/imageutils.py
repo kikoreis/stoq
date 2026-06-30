@@ -54,8 +54,8 @@ def image2pixbuf(image):
         image.save(f, 'png')
         loader = GdkPixbuf.PixbufLoader.new_with_type('png')
         loader.write(f.getvalue())
-        pixbuf = loader.get_pixbuf()
         loader.close()
+        pixbuf = loader.get_pixbuf()
 
     return pixbuf
 
