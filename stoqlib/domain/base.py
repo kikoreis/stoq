@@ -95,7 +95,14 @@ class Domain(ORMObject):
 
     def __repr__(self):
         try:
-            parts = ['%r' % self.id]
+            obj_info = get_obj_info(self)
+            # Don't trigger a flush just to render the id. If the id
+            # is still a lazy value (e.g. AutoReload on an unflushed
+            # object), show a placeholder instead.
+            if obj_info.primary_vars[0].get_lazy() is not None:
+                parts = ['[id pending]']
+            else:
+                parts = ['%r' % self.id]
         except (ClosedError, LostObjectError):
             parts = ['[id missing]']
 
