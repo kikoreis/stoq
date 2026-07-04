@@ -145,8 +145,11 @@ class AppGrid(Gtk.FlowBox):
 
     def update_selection(self):
         self.unselect_all()
+        current_app = self.window.current_app
+        if current_app is None:
+            return
         for entry in self.get_children():
-            if entry.app.name == self.window.current_app.app_name:
+            if entry.app.name == current_app.app_name:
                 self.select_child(entry)
                 break
 
