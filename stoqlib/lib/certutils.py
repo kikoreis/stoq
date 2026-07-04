@@ -30,7 +30,6 @@ import shutil
 import subprocess
 import tempfile
 
-from OpenSSL import crypto
 from stoqlib.domain.certificate import Certificate
 from stoqlib.lib.osutils import get_application_dir
 from stoqlib.lib.settings import get_settings
@@ -201,15 +200,21 @@ class CertificateManager(object):
         # This is not supported for PKCS11 yet (and maybe it will never be)
         assert self._cert_type == Certificate.TYPE_PKCS12
 
+        from cryptography.hazmat.primitives.serialization import (
+            Encoding, NoEncryption, PrivateFormat, pkcs12)
+
+        password = self._get_password()
+        pw_bytes = password.encode() if password else None
         with open(cert_path[self._cert_type], 'rb') as f:
-            pkcs12 = crypto.load_pkcs12(f.read(), self._get_password())
+            key, cert, addl = pkcs12.load_key_and_certificates(
+                f.read(), pw_bytes)
 
         with tempfile.NamedTemporaryFile(delete=False) as cert_file:
-            cert_file.write(crypto.dump_certificate(crypto.FILETYPE_PEM,
-                                                    pkcs12.get_certificate()))
+            cert_file.write(cert.public_bytes(Encoding.PEM))
         with tempfile.NamedTemporaryFile(delete=False) as key_file:
-            key_file.write(crypto.dump_privatekey(crypto.FILETYPE_PEM,
-                                                  pkcs12.get_privatekey()))
+            key_file.write(key.private_bytes(
+                Encoding.PEM, PrivateFormat.TraditionalOpenSSL,
+                NoEncryption()))
 
         yield (cert_file.name, key_file.name)
 

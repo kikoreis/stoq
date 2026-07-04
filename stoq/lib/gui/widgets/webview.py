@@ -223,7 +223,8 @@ class WebView(Gtk.ScrolledWindow):
 
     def _on_view__decide_policy(self, view, decision, decision_type):
         if decision_type == WebKit2.PolicyDecisionType.NAVIGATION_ACTION:
-            self._policy_decision(decision.get_request().get_uri(), decision)
+            uri = decision.get_navigation_action().get_request().get_uri()
+            self._policy_decision(uri, decision)
 
     #
     # Public API

@@ -110,6 +110,9 @@ class DependencyChecker(object):
         self._check_kiwi()
 
     def check(self):
+        # Core (dependencies.py itself imports packaging at load time)
+        self._check_packaging()
+
         # GUI prerequisites (so we can show error dialogs)
         self._check_gtk(GTK_REQUIRED)
         self._check_kiwi()
@@ -126,6 +129,7 @@ class DependencyChecker(object):
         self._check_psql(PSQL_REQUIRED)
         self._check_psycopg()
         self._check_storm()
+        self._check_sqlparse()
 
         # Printing
         self._check_pil()
@@ -133,10 +137,15 @@ class DependencyChecker(object):
         self._check_mako()
         if platform.system() not in ['Darwin', 'Windows']:
             self._check_weasyprint()
+            self._check_poppler()
 
         # ECF
         self._check_pyserial(PYSERIAL_REQUIRED)
         self._check_stoqdrivers()
+
+        # NFE / crypto
+        self._check_cryptography()
+        self._check_pykcs11()
 
     # --- error reporting ---
 
@@ -409,9 +418,36 @@ class DependencyChecker(object):
                           found=found,
                           required=self._required_str('weasyprint'))
 
+    def _check_poppler(self):
+        try:
+            import gi
+            gi.require_version('Poppler', '0.18')
+            from gi.repository import Poppler
+            Poppler  # pylint: disable=W0104
+        except (ValueError, ImportError) as e:
+            self._missing(project='Poppler',
+                          url='https://poppler.freedesktop.org/',
+                          details=str(e))
+
     def _check_stoqdrivers(self):
         self._check_pip_package('stoqdrivers', 'Stoqdrivers',
                                 'http://www.stoq.com.br')
+
+    def _check_packaging(self):
+        self._check_pip_package('packaging', 'packaging',
+                                'https://packaging.pypa.io/')
+
+    def _check_cryptography(self):
+        self._check_pip_package('cryptography', 'cryptography',
+                                'https://cryptography.io/')
+
+    def _check_pykcs11(self):
+        self._check_pip_package('PyKCS11', 'PyKCS11',
+                                'https://pypi.org/project/PyKCS11/')
+
+    def _check_sqlparse(self):
+        self._check_pip_package('sqlparse', 'sqlparse',
+                                'https://sqlparse.readthedocs.io/')
 
 
 def check_dependencies(text_mode=False):

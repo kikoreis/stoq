@@ -34,7 +34,6 @@ from xml.sax.saxutils import escape
 
 from dateutil.tz import tzlocal
 from lxml import etree
-from OpenSSL import crypto
 from stoqlib.lib.stringutils import strip_accents
 
 from stoqlib.domain.certificate import Certificate
@@ -46,14 +45,10 @@ try:
 except ImportError:
     pass
 
-try:
-    from cryptography.hazmat.primitives.serialization import load_pem_private_key
-    from cryptography.hazmat.primitives.hashes import SHA1
-    from cryptography.hazmat.backends import default_backend
-    from cryptography.hazmat.primitives.asymmetric.padding import PKCS1v15
-    has_cryptography = True
-except ImportError:
-    has_cryptography = False
+from cryptography.hazmat.primitives.hashes import SHA1
+from cryptography.hazmat.primitives.asymmetric.padding import PKCS1v15
+from cryptography.hazmat.primitives.serialization import (
+    Encoding, NoEncryption, pkcs12)
 
 
 log = logging.getLogger(__name__)
@@ -173,19 +168,17 @@ class Signature(BaseTag):
 class XmlSecSigner(object):
 
     def _create_tmp_cert(self, cert, password):
-        with open(cert) as f:
-            cert_file = f.read()
+        with open(cert, 'rb') as f:
+            data = f.read()
 
-        # Reads the file in pkcs12 format how binary.
-        pkcs12 = crypto.load_pkcs12(cert_file, password)
-        cert = pkcs12.get_certificate()
-        key = pkcs12.get_privatekey()
-        p12 = crypto.PKCS12()
-        p12.set_privatekey(key)
-        p12.set_certificate(cert)
+        key, cert_obj, addl = pkcs12.load_key_and_certificates(
+            data, str(password).encode() if password else None)
+
+        p12_bytes = pkcs12.serialize_key_and_certificates(
+            None, key, cert_obj, addl, NoEncryption())
 
         with tempfile.NamedTemporaryFile(delete=False) as tmp_cert:
-            tmp_cert.write(p12.export())
+            tmp_cert.write(p12_bytes)
 
         return tmp_cert.name
 
@@ -212,19 +205,13 @@ class CryptographySigner(object):
 
     def _get_key_cert(self, cert, password):
         with open(cert, 'rb') as f:
-            pkcs12 = crypto.load_pkcs12(f.read(), str(password))
+            key, cert_obj, addl = pkcs12.load_key_and_certificates(
+                f.read(), str(password).encode() if password else None)
 
-        private_key = crypto.dump_privatekey(crypto.FILETYPE_PEM,
-                                             pkcs12.get_privatekey())
-        key = load_pem_private_key(private_key, password=None, backend=default_backend())
-
-        cert = crypto.dump_certificate(crypto.FILETYPE_PEM, pkcs12.get_certificate())
-        cert = b'\n'.join(cert.split(b'\n')[1:-2])
-
-        return key, cert
+        cert_b64 = base64.b64encode(cert_obj.public_bytes(Encoding.DER))
+        return key, cert_b64
 
     def get_signature(self, xml, cert, password_callback, certificate_callback):
-        assert has_cryptography
         key, cert = self._get_key_cert(cert, password_callback())
 
         # Digest
@@ -233,9 +220,8 @@ class CryptographySigner(object):
         # Signature
         signed_info = copy.deepcopy(xml[-1][0])
         signed_info.find('.//{*}DigestValue').text = digest
-        signer = key.signer(padding=PKCS1v15(), algorithm=SHA1())
-        signer.update(get_c14n(signed_info))
-        signature = base64.b64encode(signer.finalize())
+        signature = key.sign(get_c14n(signed_info), PKCS1v15(), SHA1())
+        signature = base64.b64encode(signature)
 
         # Keep signature value compatible with xmlsec signer for testing purposes.
         signature = format_base64(signature)
@@ -331,9 +317,7 @@ class PyKCS11Signer(object):
 
 
 _signers = {
-    Certificate.TYPE_PKCS12: (CryptographySigner()
-                              if has_cryptography else
-                              XmlSecSigner()),
+    Certificate.TYPE_PKCS12: CryptographySigner(),
     Certificate.TYPE_PKCS11: PyKCS11Signer(),
 }
 

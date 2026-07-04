@@ -22,140 +22,132 @@
 ## Author(s): Stoq Team <stoq-devel@async.com.br>
 ##
 
-import errno
+"""TLS HTTP session for Sefaz web services using a client certificate.
+
+Originally built on python-nss (NSS certdb + NSS SSL). python-nss is
+unmaintained and does not build on Python 3.14 / NSS 3.120, so this
+module now uses the stdlib :mod:`ssl` module plus pyOpenSSL to load a
+PKCS#12 (.pfx) client certificate. The ``nss_setup``/``NssSession``/
+``NssResponse`` names are kept so callers (certutils.py) are unchanged.
+
+PKCS#11 (A3) client-cert SSL is not supported here: stdlib ssl needs an
+OpenSSL pkcs11 engine/provider (``libengine-pkcs11-openssl3``) to use a
+token private key during the handshake, and that package is not
+installed. PKCS#12 (A1) certificates work out of the box. PKCS#11
+*signing* (xmlutils.PyKCS11Signer) is unaffected.
+"""
+
 import http.client
 import logging
 import os
+import ssl
+import tempfile
 import urllib.parse
 
-from nss import io
-from nss import nss
-from nss import ssl
-from nss.error import NSPRError
-
 log = logging.getLogger(__name__)
+
 _certdb = None
 _password_callback = None
 _certificate_callback = None
+_ssl_context = None
 
 
-def nss_setup(certdb, password_callback=None, certificate_callback=None):
-    global _certdb
-    global _password_callback
-    global _certificate_callback
+class _Token:
+    """Shim mimicking the nss Slot passed to password_callback."""
+
+    def __init__(self, token_name):
+        self.token_name = token_name
+
+
+def nss_setup(certdb, password_callback=None,
+              certificate_callback=None):
+    """Register the cert db and callbacks for later NssSession use.
+
+    Kept for compatibility with certutils.py. ``certdb`` is the
+    directory containing ``cert.pfx`` (PKCS#12) or ``cert.so``
+    (PKCS#11 module). Re-calling invalidates any cached SSL context.
+    """
+    global _certdb, _password_callback
+    global _certificate_callback, _ssl_context
     _certdb = certdb
     _password_callback = password_callback
     _certificate_callback = certificate_callback
+    _ssl_context = None
 
 
-class _NssHTTPConnection(http.client.HTTPConnection):
+def _get_pkcs12_password():
+    if _password_callback is None:
+        return None
+    return _password_callback(_Token('PKCS12'), False)
 
-    default_port = 443
 
-    def __init__(self, host, port, timeout=3, **kwargs):
-        http.client.HTTPConnection.__init__(
-            self, host, port, timeout=timeout, **kwargs)
+def _build_ssl_context():
+    """Build an ssl.SSLContext with the client cert loaded.
 
-        log.info('%s init %s', self.__class__.__name__, host)
-        self.sock = None
-        self._timeout = timeout
-        self._certdb = nss.get_default_certdb()
+    PKCS#12 (A1) certs are loaded via the cryptography package.
+    PKCS#11 (A3) certs cannot be used here: driving an OpenSSL
+    pkcs11 engine/provider for the TLS handshake needs the OpenSSL C
+    ENGINE/OSSL_STORE API, which neither stdlib ssl nor pyOpenSSL
+    expose (pyOpenSSL dropped Engine in 23.x). The pkcs11 engine/provider
+    .so is installed at the OS level, but Python has no way to wire it
+    into SSLContext.load_cert_chain. A3 *signing* (xmlutils) is
+    unaffected because that uses PyKCS11 directly.
+    """
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ctx.load_default_certs()
+    if os.environ.get('STOQ_SSL_VERIFY', '1') == '0':
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+    else:
+        ctx.check_hostname = True
+        ctx.verify_mode = ssl.CERT_REQUIRED
 
-    def connect(self):
-        log.info("connect: host=%s port=%s", self.host, self.port)
-        try:
-            addr_info = io.AddrInfo(self.host)
-        except Exception:
-            log.error("could not resolve host address '%s'", self.host)
-            raise
+    if not _certdb or not os.path.isdir(_certdb):
+        log.warning('certdb not configured: %s', _certdb)
+        return ctx
 
-        for net_addr in addr_info:
-            net_addr.port = self.port
-            self._create_socket(net_addr.family)
-            try:
-                log.info("try connect: %s", net_addr)
-                self.sock.connect(net_addr,
-                                  timeout=io.seconds_to_interval(self._timeout))
-            except Exception as e:
-                log.info("connect failed: %s (%s)", net_addr, e)
-            else:
-                log.info("connected to: %s", net_addr)
-                break
-        else:
-            raise IOError(errno.ENOTCONN,
-                          "Could not connect to %s at port %d" % (self.host, self.port))
+    pfx_path = os.path.join(_certdb, 'cert.pfx')
+    if not os.path.isfile(pfx_path):
+        raise RuntimeError(
+            'PKCS#11 (A3) client-cert SSL is not supported from '
+            'Python: stdlib ssl and pyOpenSSL cannot drive the '
+            'pkcs11 engine/provider for a TLS handshake. Use a '
+            'PKCS#12 (A1) certificate, or export the A3 cert to '
+            'PKCS#12. A3 signing (xmlutils) still works via PyKCS11.')
 
-    def _create_socket(self, family):
-        self.sock = ssl.SSLSocket(family)
-        self.sock.set_ssl_option(ssl.SSL_SECURITY, True)
-        self.sock.set_ssl_option(ssl.SSL_HANDSHAKE_AS_CLIENT, True)
-        self.sock.set_hostname(self.host)
+    from cryptography.hazmat.primitives.serialization import (
+        Encoding, NoEncryption, PrivateFormat, pkcs12)
+    password = _get_pkcs12_password()
+    pw_bytes = password.encode() if password else None
+    with open(pfx_path, 'rb') as f:
+        key, cert, addl = pkcs12.load_key_and_certificates(
+            f.read(), pw_bytes)
 
-        # Provide a callback to verify the servers certificate
-        self.sock.set_auth_certificate_callback(
-            self._auth_certificate_callback, self._certdb)
-        self.sock.set_client_auth_data_callback(
-            self._client_auth_data_callback, '', '', self._certdb)
+    bundle = cert.public_bytes(Encoding.PEM)
+    bundle += key.private_bytes(
+        Encoding.PEM, PrivateFormat.TraditionalOpenSSL, NoEncryption())
+    for ca in addl or ():
+        bundle += ca.public_bytes(Encoding.PEM)
 
-    def _auth_certificate_callback(self, sock, check_sig, is_server, certdb):
-        cert = sock.get_peer_certificate()
-        intended_usage = nss.certificateUsageSSLServer
-        try:
-            # If the cert fails validation it will raise an exception, the errno attribute
-            # will be set to the error code matching the reason why the validation failed
-            # and the strerror attribute will contain a string describing the reason.
+    # load_cert_chain reads cert+key from one PEM bundle. NamedTemporary
+    # uses mkstemp so the file is 0600; deleted right after loading.
+    with tempfile.NamedTemporaryFile(
+            delete=False, suffix='.pem') as f:
+        f.write(bundle)
+        bundle_path = f.name
+    try:
+        ctx.load_cert_chain(bundle_path)
+    finally:
+        os.unlink(bundle_path)
 
-            # XXX: After python3 migration, this is not working properly. Assume that
-            # the intented usage is valid for now.
-            #pin_args = sock.get_pkcs11_pin_arg() or ()
-            #approved_usage = cert.verify_now(certdb, check_sig, intended_usage, *pin_args)
-            approved_usage = intended_usage
-        except Exception as e:
-            # XXX: Why isn't the certificate valid?
-            logging.info('cert validation failed for "%s" (%s)', cert.subject, e.strerror)
-            approved_usage = intended_usage
-
-        logging.debug("approved_usage = %s intended_usage = %s",
-                      ', '.join(nss.cert_usage_flags(approved_usage)),
-                      ', '.join(nss.cert_usage_flags(intended_usage)))
-
-        if not bool(approved_usage & intended_usage):
-            logging.debug('cert not valid for "%s"', cert.subject)
-            return False
-
-        # Certificate is OK.  Since this is the client side of an SSL
-        # connection, we need to verify that the name field in the cert
-        # matches the desired hostname.  This is our defense against
-        # man-in-the-middle attacks.
-        hostname = sock.get_hostname()
-        try:
-            # If the cert fails validation it will raise an exception
-            cert_is_valid = cert.verify_hostname(hostname)
-        except Exception as e:
-            logging.error('failed verifying socket hostname "%s" matches cert subject "%s" (%s)',
-                          hostname, cert.subject, e.strerror)
-            return False
-
-        logging.debug('cert valid %s for "%s"', cert_is_valid, cert.subject)
-        return cert_is_valid
-
-    def _client_auth_data_callback(self, ca_names, chosen_nickname, password, nicknames):
-        nickname = _certificate_callback(
-            nss.get_cert_nicknames(self._certdb, nss.SEC_CERT_NICKNAMES_USER))
-        try:
-            cert = nss.find_cert_from_nickname(nickname, password)
-            priv_key = nss.find_key_by_any_cert(cert, password)
-        except NSPRError:
-            return False
-
-        return cert, priv_key
+    return ctx
 
 
 class NssResponse(object):
-    """Nss response object.
+    """Response wrapper matching the old nss response API.
 
-    This maps the nss response os a request to the same API that requests
-    used, making it easier to exchange one for another
+    Exposes ``status_code``, ``reason``, ``content`` (bytes) and
+    ``text`` (decoded) so it is a drop-in for the previous object.
     """
 
     def __init__(self, response):
@@ -167,18 +159,19 @@ class NssResponse(object):
     def content(self):
         return self._response.read()
 
+    @property
+    def text(self):
+        return self.content.decode('utf-8', errors='replace')
+
 
 class NssSession(object):
-    """Nss session to communicate with Sefaz using a certificate.
+    """HTTPS session for Sefaz using a client certificate.
 
-    When using this, make sure to :meth:`.init` it and :meth:`.shutdown`
-    after. This is specially important for A3 certificates so it can
-    free the token for the signature code to work. The easies way
-    for doing that is by using a contextmanager like::
+    Use as a context manager so the SSL context is built and
+    connections are closed::
 
-      >> with NssSession() as s:
-      ..    s.post('some_url')
-
+        with NssSession() as s:
+            res = s.post(url, data, headers)
     """
 
     SCHEME_PORT_MAP = {
@@ -187,8 +180,7 @@ class NssSession(object):
     }
 
     def __init__(self):
-        # Reuse socks as much as we can. This dict will map
-        # the netloc:port to an open _NssHTTPConnection to that location
+        # Map (host, port) -> open HTTP(S)Connection for reuse.
         self._conns = {}
 
     def __enter__(self):
@@ -201,27 +193,14 @@ class NssSession(object):
         self.shutdown()
 
     def init(self):
-        if nss.nss_is_initialized():
-            return
-
-        if _password_callback is not None:
-            nss.set_password_callback(_password_callback)
-
-        nss.nss_init(_certdb)
-        ssl.set_domestic_policy()
+        global _ssl_context
+        if _ssl_context is None:
+            _ssl_context = _build_ssl_context()
 
     def shutdown(self):
-        if not nss.nss_is_initialized():
-            return
-
-        try:
-            ssl.clear_session_cache()
-        except Exception:
-            pass
-        try:
-            nss.nss_shutdown()
-        except Exception:
-            pass
+        # No global NSS state to tear down; connections are closed in
+        # __exit__. The SSLContext is kept for reuse across sessions.
+        pass
 
     def get(self, url, headers=None):
         return self.request('GET', url, headers=headers)
@@ -230,56 +209,59 @@ class NssSession(object):
         return self.request('POST', url, data=data, headers=headers,
                             timeout=timeout)
 
-    def request(self, method, url, data=None, headers=None, timeout=None):
+    def request(self, method, url, data=None, headers=None,
+                timeout=None):
         parsed = urllib.parse.urlparse(url)
-        port = parsed.port
-        if not port:
-            port = self.SCHEME_PORT_MAP[parsed.scheme]
+        port = parsed.port or self.SCHEME_PORT_MAP[parsed.scheme]
+        key = (parsed.hostname, port)
 
-        key = (parsed.netloc, port)
-        conn = self._conns.get(key, None)
+        conn = self._conns.get(key)
         if conn is None:
-            conn = self._conns.setdefault(key, _NssHTTPConnection(parsed.netloc,
-                                                                  port,
-                                                                  timeout=timeout))
-            conn.connect()
-
-        # FIXME: python-nss stores password_callback on a per-thread dict
-        # Since this object will be called from different threads,
-        # some would not find it. It is not a big problem since setting the
-        # password callback is a fast operation, but maybe there's
-        # some better solution here?
-        if _password_callback is not None:
-            nss.set_password_callback(_password_callback)
+            if parsed.scheme == 'https':
+                conn = http.client.HTTPSConnection(
+                    parsed.hostname, port,
+                    context=_ssl_context, timeout=timeout)
+            else:
+                conn = http.client.HTTPConnection(
+                    parsed.hostname, port, timeout=timeout)
+            self._conns[key] = conn
 
         conn.request(method, parsed.path, body=data, headers=headers)
         return NssResponse(conn.getresponse())
 
 
 if __name__ == '__main__':
-    firefoxdir = os.path.join(os.environ['HOME'], '.mozilla', 'firefox')
-    if not os.path.exists(firefoxdir):
-        raise AssertionError
+    # Smoke test: uses the stoq certdb (certutils.certdb_path) and
+    # posts a NFe status-servico SOAP envelope to the RS homologation
+    # endpoint. Requires a configured PKCS#12 certificate.
+    from stoqlib.lib.certutils import certdb_path
 
-    import configparser
-    cfg = configparser.ConfigParser()
-    cfg.read(os.path.join(firefoxdir, 'profiles.ini'))
-    nss_setup(os.path.join(firefoxdir, cfg.get('Profile0', 'Path')))
+    nss_setup(certdb_path)
 
-    url = 'https://nfce-homologacao.sefazrs.rs.gov.br/ws/NfeStatusServico/NFeStatusServico2.asmx'
-    data = ('<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope" '
-            'xmlns:xsd="http://www.w3.org/2001/XMLSchema" '
-            'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'
-            '<soap:Header>'
-            '<nfeCabecMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NfeStatusServico2">'
-            '<versaoDados>3.10</versaoDados><cUF>43</cUF></nfeCabecMsg></soap:Header>'
-            '<soap:Body>'
-            '<nfeDadosMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NfeStatusServico2">'
-            '<consStatServ xmlns="http://www.portalfiscal.inf.br/nfe" versao="3.10">'
-            '<tpAmb>2</tpAmb><cUF>43</cUF><xServ>STATUS</xServ></consStatServ>'
-            '</nfeDadosMsg></soap:Body></soap:Envelope>')
-    headers = {'Content-type': u'application/soap+xml; charset=utf-8',
-               'Accept': u'application/soap+xml; charset=utf-8'}
+    url = ('https://nfce-homologacao.sefazrs.rs.gov.br/ws/'
+           'NfeStatusServico/NFeStatusServico2.asmx')
+    data = (
+        '<soap:Envelope '
+        'xmlns:soap="http://www.w3.org/2003/05/soap-envelope" '
+        'xmlns:xsd="http://www.w3.org/2001/XMLSchema" '
+        'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'
+        '<soap:Header>'
+        '<nfeCabecMsg xmlns="http://www.portalfiscal.inf.br/nfe/'
+        'wsdl/NfeStatusServico2">'
+        '<versaoDados>3.10</versaoDados><cUF>43</cUF>'
+        '</nfeCabecMsg></soap:Header>'
+        '<soap:Body>'
+        '<nfeDadosMsg xmlns="http://www.portalfiscal.inf.br/nfe/'
+        'wsdl/NfeStatusServico2">'
+        '<consStatServ xmlns="http://www.portalfiscal.inf.br/nfe" '
+        'versao="3.10">'
+        '<tpAmb>2</tpAmb><cUF>43</cUF>'
+        '<xServ>STATUS</xServ></consStatServ>'
+        '</nfeDadosMsg></soap:Body></soap:Envelope>')
+    headers = {
+        'Content-type': 'application/soap+xml; charset=utf-8',
+        'Accept': 'application/soap+xml; charset=utf-8',
+    }
     with NssSession() as s:
         res = s.post(url, data, headers)
         print("status:", res.status_code)

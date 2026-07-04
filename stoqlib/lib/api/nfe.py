@@ -1,5 +1,5 @@
 import datetime
-import html.parser
+import html
 from decimal import Decimal
 
 from kiwi.component import provide_utility
@@ -44,7 +44,7 @@ class NFe:
     def _get_text(self, path, root):
         tag = self._find_one_tag(path, root)
         if tag is not None and tag.text is not None:
-            text = html.parser.HTMLParser().unescape(tag.text)
+            text = html.unescape(tag.text)
             return str(text)
         return None
 
