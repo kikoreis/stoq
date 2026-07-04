@@ -295,12 +295,11 @@ class NFePurchase(Domain):
                 """A criação de produtos somente é permitida para produtos do tipo pacote.
                 Verifique o cache do seu navegador.""")
 
-        sellable = None
         if product_info["code"]:
             sellable = self.store.find(Sellable,
                                        Sellable.code == product_info["code"])
-        if sellable:
-            return
+            if not sellable.is_empty():
+                return
 
         sellable = Sellable(store=self.store,
                             description=product_info["description"],
