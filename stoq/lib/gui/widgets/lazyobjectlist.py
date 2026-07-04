@@ -6,16 +6,16 @@
 ## All rights reserved
 ##
 ## This program is free software; you can redistribute it and/or modify
-## it under the terms of the GNU General Public License as published by
+## it under the terms of the GNU Lesser General Public License as published by
 ## the Free Software Foundation; either version 2 of the License, or
 ## (at your option) any later version.
 ##
 ## This program is distributed in the hope that it will be useful,
 ## but WITHOUT ANY WARRANTY; without even the implied warranty of
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-## GNU General Public License for more details.
+## GNU Lesser General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
+## You should have received a copy of the GNU Lesser General Public License
 ## along with this program; if not, write to the Free Software
 ## Foundation, Inc., or visit: http://www.gnu.org/.
 ##
@@ -23,7 +23,6 @@
 #
 
 from gi.repository import Gtk, GObject, GLib
-from pygtkcompat.generictreemodel import GenericTreeModel
 
 from kiwi.datatypes import number
 from kiwi.ui.objectlist import empty_marker, ListLabel
@@ -47,20 +46,32 @@ def debug(func):
     return wrapper
 
 
-class LazyObjectModelRow(object):
-    def __init__(self, item, path, iter):
-        self.item = item
-        self.path = path
-        self.parent = None  # not supported yet
-        self.next = None  # not supported yet
-        self.iter = iter
-
-    def __getitem__(self, index):
-        assert index == 0, index
-        return self.item
+def _noop_sort_func(*args):
+    # Neutralize Gtk.ListStore's in-memory sort: rows must keep their
+    # index<->DB-row correspondence so values can be filled in lazily.
+    return 0
 
 
-class LazyObjectModel(GenericTreeModel, Gtk.TreeSortable):
+class LazyObjectModel(Gtk.ListStore):
+    """A flat, single-column (object) ListStore that loads rows from the
+    database on demand as the user scrolls.
+
+    Backed by a real Gtk.ListStore (one row per result, pre-filled with
+    empty_marker and updated in place when fetched), so it no longer
+    depends on the pygtkcompat GenericTreeModel shim (removed from modern
+    PyGObject).
+
+    Sorting is NOT done in memory: each column gets a no-op sort_func so
+    that set_sort_column_id() (invoked by the treeview on a header click)
+    only updates the sort indicator without reordering rows. The actual
+    re-query is triggered by ObjectList's 'sorting-changed' signal, which
+    calls resort() below.
+
+    We cannot override the GtkTreeSortable vfuncs (do_set_sort_column_id
+    etc.) here: in PyGObject, an interface vfunc override on a
+    Gtk.ListStore subclass leaks to the base GtkListStore type and would
+    break in-memory sorting for every plain ListStore in the app.
+    """
 
     __gtype_name__ = 'LazyObjectModel'
 
@@ -73,11 +84,11 @@ class LazyObjectModel(GenericTreeModel, Gtk.TreeSortable):
           this should at least be all visible rows
         """
         old_model = objectlist.get_model()
+        Gtk.ListStore.__init__(self, object)
         self._objectlist = objectlist
         self._count = 0
         self._executer = executer
         self._initial_count = initial_count
-        self._iters = []
         self._orig_result = result
         self._post_result = None
         self._result = None
@@ -87,8 +98,10 @@ class LazyObjectModel(GenericTreeModel, Gtk.TreeSortable):
          self._sort_order) = old_model.get_sort_column_id()
         if self._sort_column_id is None:
             self._sort_column_id = 0
-        super(LazyObjectModel, self).__init__()
-        self.props.leak_references = False
+        # Install a no-op sort_func for every column id the treeview may
+        # sort on, so header clicks never reorder the backing store.
+        for i in range(len(objectlist.get_columns())):
+            self.set_sort_func(i, _noop_sort_func)
         self._load_result_set(result)
 
     def _load_result_set(self, result):
@@ -98,131 +111,42 @@ class LazyObjectModel(GenericTreeModel, Gtk.TreeSortable):
         else:
             count = result.count()
         self._count = count
-        self._iters = list(range(0, count))
-        self._result = result
         self._values = [empty_marker] * count
+        # Reset the backing store so the scrollbar reflects the full
+        # result count; rows are filled in place as they load. Clear
+        # first since this also runs on re-sort.
+        Gtk.ListStore.clear(self)
+        for _ in range(count):
+            self.append((empty_marker, ))
+        self._result = result
         self.load_items_from_results(0, self._initial_count)
 
-    # GtkTreeModel
-
-    @debug
-    def on_get_flags(self):
-        return Gtk.TreeModelFlags.LIST_ONLY
-
-    @debug
-    def on_get_n_columns(self):
-        return 1
-
-    @debug
-    def on_get_column_type(self, index):
-        return object
-
-    @debug
-    def on_get_value(self, row, column):
-        return self._values[row]
-
-    @debug
-    def on_get_iter(self, path):
-        if self._iters:
-            return self._iters[path[0]]
-
-    @debug
-    def on_get_path(self, row):
-        return (row, )
-
-    @debug
-    def on_iter_parent(self, row):
-        return None
-
-    @debug
-    def on_iter_next(self, row):
-        if row + 1 < self._count:
-            return self._iters[row + 1]
-        else:
-            return None
-
-    @debug
-    def on_iter_has_child(self, row):
-        return False
-
-    @debug
-    def on_iter_children(self, row):
-        if row is None and self._iters:
-            return self._iters[0]
-        else:
-            return None
-
-    @debug
-    def on_iter_n_children(self, row):
-        if row is None:
-            return self._count
-        else:
-            return 0
-
-    @debug
-    def on_iter_nth_child(self, parent, n):
-        if parent:
-            return None
-        else:
-            return self._iters[n]
+    # GtkTreeModel is handled natively by Gtk.ListStore (one object
+    # column); only row values change as items are fetched.
 
     def __len__(self):
         return self._count
 
     @debug
-    def __getitem__(self, key):
-        if isinstance(key, Gtk.TreeIter):
-            index = self.get_user_data(key)
-        elif isinstance(key, Gtk.TreePath):
-            index = self.get_user_data(self.get_iter(key))
-        elif isinstance(key, (str, int)):
-            index = int(key)
-        elif isinstance(key, tuple):
-            index = key[0]
-        else:
-            raise AssertionError(key)
-        return LazyObjectModelRow(self._values[index], (index,), (index,))
-
-    @debug
     def __contains__(self, value):
         return value in self._values
 
-    # GtkTreeSortable
-
-    @debug
-    def do_get_sort_column_id(self):
-        return (self._sort_order >= 0, self._sort_column_id, self._sort_order)
-
-    @debug
-    def do_set_sort_column_id(self, sort_column_id, sort_order):
+    # Re-sorting: called by LazyObjectListUpdater when ObjectList emits
+    # 'sorting-changed'. By then the treeview has already called
+    # set_sort_column_id() on us (updating the indicator, no reorder),
+    # so we just read the new column/order back and re-query.
+    def resort(self):
+        sort_column_id, sort_order = self.get_sort_column_id()
+        if sort_column_id is None or sort_column_id < 0:
+            return
         self.old_model.set_sort_column_id(sort_column_id, sort_order)
         changed_column = sort_column_id != self._sort_column_id
         self._sort_column_id = sort_column_id
         changed_order = sort_order != self._sort_order
         self._sort_order = sort_order
-
-        if (not changed_column and
-            not changed_order):
+        if not changed_column and not changed_order:
             return
-
         self._load_result_set(self._result)
-        self.sort_column_changed()
-
-    # FIXME: If we set this to do_set_sort_func it segfaults. Why?
-    @debug
-    def set_sort_func(self, sort_column_id, sort_func, user_data=None):
-        pass
-
-    @debug
-    def do_set_default_sort_func(self, sort_func, user_data=None):
-        pass
-
-    @debug
-    def do_has_default_sort_func(self):
-        # Don't return True here, so that we can have only sorted/not sorted
-        # statuses. If we return True, there is also the posibility of the
-        # default order (thats when the query is not sorted)
-        pass
 
     # Public API
 
@@ -278,11 +202,12 @@ class LazyObjectModel(GenericTreeModel, Gtk.TreeSortable):
             has_loaded = True
             self._values[i] = item
             path = (i, )
-            titer = self.create_tree_iter(i)
+            titer = self.get_iter(path)
             # We are bypassing ObjectList to insert items in the model, but
             # ObjectList depends on knowing where the model is present for a few
             # actions. Let it know about this new item
             self._objectlist.set_instance_iter(item, titer)
+            self.set(titer, [0], [item])
             self.row_changed(path, titer)
 
         return has_loaded
@@ -388,6 +313,8 @@ class LazyObjectListUpdater(object):
         self._maybe_load_more_search_results()
 
     def _on_resuls__sorting_changed(self, objectlist, attribute, sort_type):
+        if self._model is not None:
+            self._model.resort()
         self._treeview.scroll_to_point(0, 0)
 
 
