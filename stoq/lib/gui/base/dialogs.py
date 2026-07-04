@@ -177,17 +177,13 @@ class BasicDialog(GladeDelegate, RunnableView):
         hbox1.pack_start(self.notice, False, True, 0)
         self.notice.show()
 
-        action_area = self.toplevel.get_action_area()
-        action_area.set_border_width(6)
-        action_area.set_layout(Gtk.ButtonBoxStyle.END)
-
-        self.cancel_button = Gtk.Button(stock=Gtk.STOCK_CANCEL)
-        action_area.pack_start(self.cancel_button, True, True, 6)
+        self.cancel_button = Gtk.Button.new_with_mnemonic(_("_Cancel"))
+        self.toplevel.add_action_widget(self.cancel_button, Gtk.ResponseType.CANCEL)
         self.cancel_button.show()
 
-        self.ok_button = Gtk.Button(stock=Gtk.STOCK_OK)
+        self.ok_button = Gtk.Button.new_with_mnemonic(_("_OK"))
         self.ok_button.set_use_underline(True)
-        action_area.pack_start(self.ok_button, True, True, 6)
+        self.toplevel.add_action_widget(self.ok_button, Gtk.ResponseType.OK)
         self.ok_button.show()
 
     def _try_confirm(self, *args):
@@ -205,11 +201,11 @@ class BasicDialog(GladeDelegate, RunnableView):
             from stoq.lib.gui.utils.help import show_section
             show_section(section)
 
-        self.action_area.set_layout(Gtk.ButtonBoxStyle.END)
-        self.help_button = Gtk.Button(stock=Gtk.STOCK_HELP)
+        self.help_button = Gtk.Button.new_with_mnemonic(_("_Help"))
         self.help_button.connect('clicked', on_help__clicked)
-        self.action_area.pack_start(self.help_button, False, False, 6)
-        self.action_area.set_child_secondary(self.help_button, True)
+        self.toplevel.add_action_widget(self.help_button, 0)
+        self.toplevel.get_action_area().set_child_secondary(
+            self.help_button, True)
         self.help_button.show()
 
     #
