@@ -171,6 +171,8 @@ class _OperationExecuter(threading.Thread):
         super(_OperationExecuter, self).__init__()
 
         self._conn = psycopg2.connect(db_settings.get_store_dsn())
+        self._conn.set_isolation_level(
+            psycopg2.extensions.ISOLATION_LEVEL_READ_COMMITTED)
         self._queue = queue.Queue()
 
     @classmethod

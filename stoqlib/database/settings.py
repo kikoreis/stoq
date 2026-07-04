@@ -313,7 +313,9 @@ class DatabaseSettings(object):
         :returns: a string like "dbname=stoq host=localhost port=5432"
         """
         from storm.databases.postgres import make_dsn
-        return make_dsn(self._create_uri(self.dbname))
+        uri = self._create_uri(self.dbname)
+        uri.options.pop("isolation", None)
+        return make_dsn(uri)
 
     def create_store(self):
         """Creates a store using the provided default settings.
