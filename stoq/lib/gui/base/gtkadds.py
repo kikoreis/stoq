@@ -27,7 +27,17 @@ from gi.repository import Gtk, Pango
 
 
 def change_button_appearance(button, icon=None, text=None):
-    alignment = button.get_children()[0]
+    child = button.get_children()[0]
+    if isinstance(child, Gtk.Label):
+        if text is not None:
+            child.set_text_with_mnemonic(text)
+        if icon:
+            image = Gtk.Image()
+            image.set_from_stock(icon, Gtk.IconSize.BUTTON)
+            button.set_image(image)
+            button.set_always_show_image(True)
+        return
+    alignment = child
     hbox = alignment.get_children()[0]
     image, label = hbox.get_children()
     if icon:
