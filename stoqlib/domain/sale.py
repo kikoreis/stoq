@@ -2007,7 +2007,7 @@ class Sale(IdentifiableDomain):
         therefore have not had their tax information fulfilled yet."""
         tables = [SaleItem, Join(Sellable, SaleItem.sellable_id == Sellable.id)]
         query = And(SaleItem.sale == self, Sellable.notes.like(Sellable.NOTES_CREATED_VIA_SALE))
-        return bool(self.store.using(*tables).find(SaleItem, query))
+        return not self.store.using(*tables).find(SaleItem, query).is_empty()
 
     @property
     def discount_percentage(self):
