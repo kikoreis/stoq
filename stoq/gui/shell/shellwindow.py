@@ -869,6 +869,7 @@ class ShellWindow(Delegate):
         self.main_menu.remove_all()
         self.search_menu.remove_all()
         self.new_menu.remove_all()
+        self.new_button.show()
 
         if self.current_app:
             inventory_bar = getattr(self.current_app, 'inventory_bar', None)

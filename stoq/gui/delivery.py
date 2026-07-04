@@ -124,9 +124,7 @@ class DeliveryApp(ShellApp):
     def create_ui(self):
         self.search.enable_lazy_search()
 
-        # XXX: What should we put on new items?
-        self.window.add_new_items([
-        ])
+        self.window.new_button.hide()
 
         self.window.add_search_items([
             self.Products,

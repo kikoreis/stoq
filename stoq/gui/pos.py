@@ -523,6 +523,7 @@ class PosApp(ShellApp):
         self._reset_quantity_proxy()
         self._update_totals()
         self._batch = None
+        self._update_buttons()
         if self._confirm_quantity:
             self.sellable_description.set_text('')
 
