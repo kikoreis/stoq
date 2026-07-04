@@ -126,6 +126,9 @@ class _QueryEntryPopup(PopupWindow):
         else:
             raise TypeError("needs relative or absolute")
 
+        if not len(model):
+            return
+
         if row_no < 0:
             path = (0, )
         elif row_no >= len(model):
