@@ -488,7 +488,7 @@ class StockApp(ShellApp):
 
         with api.new_store() as store:
             self.run_dialog(ProductStockQuantityEditor, store,
-                            store.fetch(product), branch=branch)
+                            store.fetch(product), branch=store.fetch(branch))
 
         if store.committed:
             self.refresh()
