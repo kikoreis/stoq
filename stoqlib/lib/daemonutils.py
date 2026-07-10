@@ -78,7 +78,7 @@ def start_daemon():
 @atexit.register
 def stop_daemon():
     global _daemon
-    if _daemon is not None and _daemon.isAlive():
+    if _daemon is not None and _daemon.is_alive():
         log.debug('Stopping deamon')
         _daemon.terminate()
     _daemon = None

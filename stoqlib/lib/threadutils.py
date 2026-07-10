@@ -37,7 +37,7 @@ def terminate_thread(thread):
     if not thread:
         return
 
-    if not thread.isAlive():
+    if not thread.is_alive():
         return
 
     exc = ctypes.py_object(SystemExit)
